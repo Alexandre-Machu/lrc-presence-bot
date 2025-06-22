@@ -13,10 +13,14 @@ class SheetsHandler:
         self.service = build('sheets', 'v4', credentials=self.creds)
         self.sheet = self.service.spreadsheets()
 
-    def add_entry(self, user, presence, timezone):
+    def add_entry(self, user, presence, timezone, specific_date=None):
         try:
             print(f"Ajout d'une entrée : {user} - {presence}")
-            today = datetime.now(timezone).strftime("%d/%m/%Y")
+            if specific_date:
+                date = specific_date
+            else:
+                date = datetime.now(timezone)
+            today = date.strftime("%d/%m/%Y")
             
             # Récupère les données existantes
             result = self.sheet.values().get(

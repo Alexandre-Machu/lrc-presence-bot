@@ -176,7 +176,7 @@ async def lrcsendpresencemessage(interaction: discord.Interaction):
 
 @bot.tree.command(name="lrcinfo", description="Affiche les informations sur les commandes du bot")
 async def lrcinfo(interaction: discord.Interaction):
-    info_message = """
+    info_message = f"""
 **🤖 Bot LRC - Guide des commandes**
 
 **Liens utiles :**
@@ -237,20 +237,22 @@ async def lrcpush(
         await interaction.response.send_message("Vous n'avez pas les permissions nécessaires.", ephemeral=True)
         return
 
+    # Defer the response immediately
+    await interaction.response.defer(ephemeral=True)
+
     try:
         channel = bot.get_channel(CHANNEL_ID)
         if date is None:
             target_date = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
         else:
-            # Valider le format de la date
             try:
-                datetime.strptime(date, "%d/%m/%Y")
+                # Convertir la date fournie en objet datetime
+                target_datetime = datetime.strptime(date, "%d/%m/%Y")
                 target_date = date
             except ValueError:
-                await interaction.response.send_message("Format de date invalide. Utilisez le format DD/MM/YYYY", ephemeral=True)
+                await interaction.followup.send("Format de date invalide. Utilisez le format DD/MM/YYYY")
                 return
-        
-        # Trouve le message pour la date donnée
+
         presence_message = None
         async for message in channel.history(limit=100):
             if message.author == bot.user and target_date in message.content:
@@ -258,23 +260,26 @@ async def lrcpush(
                 break
 
         if not presence_message:
-            await interaction.response.send_message(f"Aucun message de présence trouvé pour le {target_date}!", ephemeral=True)
+            await interaction.followup.send(f"Aucun message de présence trouvé pour le {target_date}!")
             return
 
-        # Met à jour le Google Sheet
         count = 0
         for reaction in presence_message.reactions:
             if str(reaction.emoji) in PRESENCE_STATUS:
                 async for user in reaction.users():
                     if not user.bot:
                         presence = PRESENCE_STATUS[str(reaction.emoji)]
-                        sheets_handler.add_entry(user.name, presence, TIMEZONE)
+                        # Utiliser la date fournie pour l'ajout d'entrée
+                        if date:
+                            sheets_handler.add_entry(user.name, presence, TIMEZONE, target_datetime)
+                        else:
+                            sheets_handler.add_entry(user.name, presence, TIMEZONE)
                         count += 1
 
-        await interaction.response.send_message(f"Les données du {target_date} ont été envoyées vers Google Sheets! ({count} entrées)", ephemeral=True)
+        await interaction.followup.send(f"Les données du {target_date} ont été envoyées vers Google Sheets! ({count} entrées)")
 
     except Exception as e:
-        await interaction.response.send_message(f"Une erreur est survenue : {str(e)}", ephemeral=True)
+        await interaction.followup.send(f"Une erreur est survenue : {str(e)}")
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
