@@ -1,0 +1,8 @@
+discord.py>=2.0.0
+python-dateutil
+pytz
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
+python-dotenv
