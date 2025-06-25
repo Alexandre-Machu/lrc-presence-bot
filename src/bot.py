@@ -3,7 +3,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord.ui import Select, View
 from datetime import datetime, timedelta
 from config.settings import *
@@ -29,6 +29,11 @@ async def on_ready():
         # Synchronise les nouvelles commandes
         commands = await bot.tree.sync()
         print(f"Les commandes ont été resynchronisées avec succès! ({len(commands)} commandes)")
+        
+        # Démarrer les tâches planifiées
+        daily_push.start()
+        daily_presence_message.start()
+        
     except Exception as e:
         print(f"Erreur lors de la synchronisation des commandes: {e}")
 
@@ -361,6 +366,63 @@ class ArrivalTimeSelect(Select):
                 "Une erreur est survenue lors de la sélection de l'heure d'arrivée.",
                 ephemeral=True
             )
+
+@tasks.loop(time=datetime.time(hour=7, minute=59))
+async def daily_push():
+    try:
+        # Calculer la date d'hier
+        yesterday = datetime.now(TIMEZONE) - timedelta(days=1)
+        yesterday_str = yesterday.strftime("%d/%m/%Y")
+        
+        # Simuler la commande lrcpush pour hier
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            print("Erreur: Canal introuvable pour le push quotidien")
+            return
+
+        # Trouve le message pour hier
+        presence_message = None
+        async for message in channel.history(limit=100):
+            if message.author == bot.user and hasattr(message, 'embeds'):
+                for embed in message.embeds:
+                    if embed.title and yesterday_str in embed.title:
+                        presence_message = message
+                        break
+                if presence_message:
+                    break
+
+        if not presence_message:
+            print(f"Aucun message de présence trouvé pour le {yesterday_str}")
+            return
+
+        # Push les données
+        count = 0
+        for reaction in presence_message.reactions:
+            if str(reaction.emoji) in PRESENCE_STATUS:
+                async for user in reaction.users():
+                    if not user.bot:
+                        presence = PRESENCE_STATUS[str(reaction.emoji)]
+                        arrival_time = arrival_times.get(str(user.id), None)
+                        sheets_handler.add_entry(user.name, presence, TIMEZONE, yesterday, arrival_time)
+                        count += 1
+
+        arrival_times.clear()
+        print(f"Push automatique effectué pour le {yesterday_str} ({count} entrées)")
+
+    except Exception as e:
+        print(f"Erreur lors du push quotidien : {str(e)}")
+
+@tasks.loop(time=datetime.time(hour=8, minute=0))
+async def daily_presence_message():
+    try:
+        channel = bot.get_channel(CHANNEL_ID)
+        if channel:
+            await send_presence_message(channel)
+            print("Message de présence quotidien envoyé")
+        else:
+            print("Erreur: Canal introuvable pour le message quotidien")
+    except Exception as e:
+        print(f"Erreur lors de l'envoi du message quotidien : {str(e)}")
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
