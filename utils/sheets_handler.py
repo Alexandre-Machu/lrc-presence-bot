@@ -13,48 +13,32 @@ class SheetsHandler:
         self.service = build('sheets', 'v4', credentials=self.creds)
         self.sheet = self.service.spreadsheets()
 
-    def add_entry(self, user, presence, timezone, specific_date=None):
+    def add_entry(self, user, presence, timezone, specific_date=None, arrival_time=None):
         try:
-            print(f"Ajout d'une entrée : {user} - {presence}")
             if specific_date:
                 date = specific_date
             else:
                 date = datetime.now(timezone)
             today = date.strftime("%d/%m/%Y")
             
-            # Récupère les données existantes
-            result = self.sheet.values().get(
+            values = [[today, user, presence, arrival_time if arrival_time else '']]
+            
+            body = {
+                'values': values
+            }
+            
+            result = self.sheet.values().append(
                 spreadsheetId=self.spreadsheet_id,
-                range='Présences!A:C'
+                range='Présences!A:D',
+                valueInputOption='RAW',
+                body=body
             ).execute()
-            values = result.get('values', [])
             
-            # Vérifie si l'entrée existe déjà
-            row_index = None
-            for i, row in enumerate(values):
-                if row[0] == today and row[1] == user:
-                    row_index = i + 1
-                    break
+            print(f"Ajout d'une entrée : {user} - {presence} - {arrival_time}")
             
-            # Met à jour ou ajoute l'entrée
-            if row_index:
-                range_name = f'Présences!C{row_index}'
-                self.sheet.values().update(
-                    spreadsheetId=self.spreadsheet_id,
-                    range=range_name,
-                    valueInputOption='RAW',
-                    body={'values': [[presence]]}
-                ).execute()
-            else:
-                self.sheet.values().append(
-                    spreadsheetId=self.spreadsheet_id,
-                    range='Présences!A:C',
-                    valueInputOption='RAW',
-                    body={'values': [[today, user, presence]]}
-                ).execute()
-            print("Entrée ajoutée avec succès")
         except Exception as e:
             print(f"Erreur lors de l'ajout de l'entrée : {e}")
+            raise e
 
     def get_stats(self):
         result = self.sheet.values().get(
@@ -66,22 +50,3 @@ class SheetsHandler:
         # Convertit en DataFrame pour faciliter l'analyse
         df = pd.DataFrame(values[1:], columns=values[0])
         return df
-
-    def update_arrival_time(self, username: str, arrival_time: str):
-        today = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
-        worksheet = self.sheet.worksheet("Présences")
-        
-        # Find the row for today and this user
-        cell = worksheet.find(f"{today}_{username}")
-        if cell:
-            # Update arrival time in the next column
-            worksheet.update_cell(cell.row, cell.col + 1, arrival_time)
-
-    def get_arrival_time(self, username: str) -> str:
-        today = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
-        worksheet = self.sheet.worksheet("Présences")
-        
-        cell = worksheet.find(f"{today}_{username}")
-        if cell:
-            return worksheet.cell(cell.row, cell.col + 1).value
-        return None
