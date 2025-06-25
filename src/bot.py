@@ -5,7 +5,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import discord
 from discord.ext import commands, tasks
 from discord.ui import Select, View
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time  # Ajout de time
 from config.settings import *
 from utils.sheets_handler import SheetsHandler
 
@@ -367,7 +367,7 @@ class ArrivalTimeSelect(Select):
                 ephemeral=True
             )
 
-@tasks.loop(time=datetime.time(hour=7, minute=59))
+@tasks.loop(time=time(hour=7, minute=59))
 async def daily_push():
     try:
         # Calculer la date d'hier
@@ -412,7 +412,7 @@ async def daily_push():
     except Exception as e:
         print(f"Erreur lors du push quotidien : {str(e)}")
 
-@tasks.loop(time=datetime.time(hour=8, minute=0))
+@tasks.loop(time=time(hour=8, minute=0))
 async def daily_presence_message():
     try:
         channel = bot.get_channel(CHANNEL_ID)
