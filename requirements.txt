@@ -1,8 +1,8 @@
-discord.py>=2.0.0
-python-dateutil
-pytz
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-google-api-python-client
-python-dotenv
+discord.py>=2.3.2
+python-dotenv>=1.0.0
+google-api-python-client>=2.97.0
+google-auth-httplib2>=0.1.1
+google-auth-oauthlib>=1.1.0
+pandas>=2.0.3
+openpyxl>=3.1.2
+pytz>=2023.3
