@@ -66,3 +66,22 @@ class SheetsHandler:
         # Convertit en DataFrame pour faciliter l'analyse
         df = pd.DataFrame(values[1:], columns=values[0])
         return df
+
+    def update_arrival_time(self, username: str, arrival_time: str):
+        today = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
+        worksheet = self.sheet.worksheet("Présences")
+        
+        # Find the row for today and this user
+        cell = worksheet.find(f"{today}_{username}")
+        if cell:
+            # Update arrival time in the next column
+            worksheet.update_cell(cell.row, cell.col + 1, arrival_time)
+
+    def get_arrival_time(self, username: str) -> str:
+        today = datetime.now(TIMEZONE).strftime("%Y-%m-%d")
+        worksheet = self.sheet.worksheet("Présences")
+        
+        cell = worksheet.find(f"{today}_{username}")
+        if cell:
+            return worksheet.cell(cell.row, cell.col + 1).value
+        return None
