@@ -1,21 +1,25 @@
 #!/bin/bash
 
 # Mise à jour du système
-sudo apt update
-sudo apt upgrade -y
+apt update && apt upgrade -y
 
-# Installation des dépendances
-sudo apt install -y python3-pip python3-venv
+# Installation des dépendances système
+apt install -y python3-pip python3-venv git
+
+# Création du dossier du projet
+cd /home/ubuntu
+git clone https://github.com/Alexandre-Machu/lrc-presence-bot.git
+cd lrc-presence-bot
+
+# Configuration des permissions
+chown -R ubuntu:ubuntu /home/ubuntu/lrc-presence-bot
 
 # Création de l'environnement virtuel
-python3 -m venv venv
-source venv/bin/activate
-
-# Installation des dépendances Python
-pip install -r requirements.txt
+sudo -u ubuntu python3 -m venv venv
+sudo -u ubuntu bash -c "source venv/bin/activate && pip install -r requirements.txt"
 
 # Configuration du service systemd
-sudo cp config/service/lrc-bot.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable lrc-bot
-sudo systemctl start lrc-bot
+cp config/service/lrc-bot.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable lrc-bot
+systemctl start lrc-bot
