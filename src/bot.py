@@ -19,7 +19,10 @@ intents.guilds = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 sheets_handler = SheetsHandler(GOOGLE_SPREADSHEET_ID)
 
-arrival_times = {}  # Pour stocker temporairement les heures {user.name: time}
+# Au début du fichier, modifions les variables globales
+arrival_times = {}  # Pour stocker les heures des présents {user_id: time}
+maybe_times = {}    # Pour stocker les heures des "Ne sait pas" {user_id: time}
+presence_states = {}  # Pour stocker les états de présence {user_id: state}
 
 @bot.event
 async def on_ready():
@@ -37,49 +40,51 @@ async def on_ready():
     except Exception as e:
         print(f"Erreur lors de la synchronisation des commandes: {e}")
 
+async def clear_old_presence_messages(channel):
+    """Nettoie les anciens messages de présence du bot"""
+    try:
+        async for message in channel.history(limit=100):
+            if message.author == bot.user:
+                await message.delete()
+    except Exception as e:
+        print(f"Erreur lors du nettoyage des messages : {e}")
+
 async def send_presence_message(channel):
-    today = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
-    
-    # Create the base message
-    embed = discord.Embed(
-        title=f"Qui sera présent aujourd'hui ? ({today})",
-        description=(
-            f"{EMOJI_PRESENT} : Présent\n"
-            f"{EMOJI_ABSENT} : Absent\n"
-            f"{EMOJI_MAYBE} : Ne sait pas"
-        ),
-        color=discord.Color.blue()
-    )
-    
-    # Create View with time selector
-    view = View(timeout=None)  # No timeout
-    time_select = ArrivalTimeSelect(None)  # We'll update user_id when someone clicks Present
-    view.add_item(time_select)
-    
-    # Send message with both embed and view
-    message = await channel.send(embed=embed, view=view)
-    
-    # Add reactions
-    for emoji in [EMOJI_PRESENT, EMOJI_ABSENT, EMOJI_MAYBE]:
-        await message.add_reaction(emoji)
-    
-    return message
+    """Envoie un nouveau message de présence après avoir nettoyé les anciens"""
+    try:
+        await clear_old_presence_messages(channel)
+        today = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
+        
+        embed = discord.Embed(
+            title=f"Qui sera présent aujourd'hui ? ({today})",
+            description="Utilisez le menu déroulant ci-dessous pour indiquer votre présence",
+            color=discord.Color.blue()
+        )
+        
+        view = PresenceButtons()
+        message = await channel.send(embed=embed, view=view)
+        return message
+    except Exception as e:
+        print(f"Erreur lors de l'envoi du message de présence : {e}")
+        return None
 
 @bot.tree.command(
     name="lrcshowpresence", 
     description="Affiche la liste des personnes présentes pour une date donnée"
 )
-async def lrcshowpresence(
-    interaction: discord.Interaction, 
-    date: str = None
-):
+async def lrcshowpresence(interaction: discord.Interaction, date: str = None):
     await interaction.response.defer(ephemeral=False)
     
     try:
         channel = bot.get_channel(CHANNEL_ID)
         if date is None:
             target_date = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
+            # Pour aujourd'hui, utiliser les états stockés
+            presents = [k for k, v in presence_states.items() if v == "Présent"]
+            absents = [k for k, v in presence_states.items() if v == "Absent"]
+            maybe = [k for k, v in presence_states.items() if v == "Ne sait pas"]
         else:
+            # Pour les autres dates, chercher dans l'historique
             try:
                 datetime.strptime(date, "%d/%m/%Y")
                 target_date = date
@@ -87,60 +92,61 @@ async def lrcshowpresence(
                 await interaction.followup.send("Format de date invalide. Utilisez le format DD/MM/YYYY")
                 return
 
-        # Trouve le message pour la date donnée
-        presence_message = None
-        async for message in channel.history(limit=100):
-            if message.author == bot.user and hasattr(message, 'embeds'):
-                for embed in message.embeds:
-                    if embed.title and target_date in embed.title:
-                        presence_message = message
-                        break
+            # Trouve le message pour la date donnée
+            presence_message = None
+            async for message in channel.history(limit=100):
+                if message.author == bot.user and hasattr(message, 'embeds'):
+                    for embed in message.embeds:
+                        if embed.title and target_date in embed.title:
+                            presence_message = message
+                            break
                 if presence_message:
                     break
 
-        if not presence_message:
-            await interaction.followup.send(f"Aucun message de présence trouvé pour le {target_date}")
-            return
+            if not presence_message:
+                await interaction.followup.send(f"Aucun message de présence trouvé pour le {target_date}")
+                return
 
-        # Initialise les listes pour chaque catégorie
-        presents = set()
-        maybe = set()
-        absents = set()  # Nouvelle liste pour les absents
-        
-        # Récupère les membres du serveur
-        guild = interaction.guild
-        
-        # Traite les réactions du message
-        for reaction in presence_message.reactions:
-            if str(reaction.emoji) == EMOJI_PRESENT:
-                async for user in reaction.users():
-                    if not user.bot:
-                        member = guild.get_member(user.id)
-                        presents.add(member.mention)
-            elif str(reaction.emoji) == EMOJI_MAYBE:
-                async for user in reaction.users():
-                    if not user.bot:
-                        member = guild.get_member(user.id)
-                        maybe.add(member.mention)
-            elif str(reaction.emoji) == EMOJI_ABSENT:  # Ajout du traitement des absents
-                async for user in reaction.users():
-                    if not user.bot:
-                        member = guild.get_member(user.id)
-                        absents.add(member.mention)
+            # Initialise les listes pour chaque catégorie
+            presents = set()
+            maybe = set()
+            absents = set()  # Nouvelle liste pour les absents
 
-        # Construit le message
+            # Récupère les membres du serveur
+            guild = interaction.guild
+
+            # Traite les réactions du message
+            for reaction in presence_message.reactions:
+                if str(reaction.emoji) == EMOJI_PRESENT:
+                    async for user in reaction.users():
+                        if not user.bot:
+                            member = guild.get_member(user.id)
+                            presents.add(member.mention)
+                elif str(reaction.emoji) == EMOJI_MAYBE:
+                    async for user in reaction.users():
+                        if not user.bot:
+                            member = guild.get_member(user.id)
+                            maybe.add(member.mention)
+                elif str(reaction.emoji) == EMOJI_ABSENT:  # Ajout du traitement des absents
+                    async for user in reaction.users():
+                        if not user.bot:
+                            member = guild.get_member(user.id)
+                            absents.add(member.mention)
+
         message_parts = []
-        
+        guild = interaction.guild
+
         if presents:
             present_list = []
-            for mention in sorted(presents):
-                # Extraire l'ID de la mention
-                user_id = mention.replace("<@", "").replace(">", "")
-                arrival_time = arrival_times.get(user_id, None)
-                time_str = f" ({arrival_time})" if arrival_time else ""
-                present_list.append(f"- {mention}{time_str}")
-            message_parts.append(f"**Personnes présentes ce soir :**\n{'\n'.join(present_list)}")
-        
+            for user_id in presents:
+                user = guild.get_member(int(user_id))
+                if user:
+                    time = arrival_times.get(user_id, "")
+                    time_str = f" ({time})" if time else ""
+                    present_list.append(f"- {user.mention}{time_str}")
+            if present_list:
+                message_parts.append(f"**Personnes présentes :**\n{chr(10).join(present_list)}")
+
         if maybe:
             maybe_list = "\n- ".join(sorted(maybe))
             message_parts.append(f"\n\n**Personnes pas sûres :**\n- {maybe_list}")
@@ -149,14 +155,14 @@ async def lrcshowpresence(
             absent_list = "\n- ".join(sorted(absents))
             message_parts.append(f"\n\n**Personnes absentes :**\n- {absent_list}")
 
-        if not presents and not maybe and not absents:
-            await interaction.followup.send("**Personne n'a encore répondu pour aujourd'hui** 😢\nRéagissez avec ✅, ❌ ou ❓ pour indiquer votre statut!")
+        if not message_parts:
+            await interaction.followup.send("Personne n'a encore répondu pour cette date.")
             return
-            
-        final_message = "\n".join(message_parts)
-        await interaction.followup.send(final_message)
+
+        await interaction.followup.send("\n\n".join(message_parts))
         
     except Exception as e:
+        print(f"Error in lrcshowpresence: {e}")
         await interaction.followup.send(f"Une erreur est survenue : {str(e)}")
 
 @bot.tree.command(name="lrcshowstats", description="Affiche les statistiques de présence")
@@ -249,48 +255,43 @@ async def lrcinfo(interaction: discord.Interaction):
 @bot.tree.command(name="lrcreset", description="Réinitialise le message de présence")
 async def lrcreset(interaction: discord.Interaction):
     try:
-        await interaction.response.defer()
+        # Répondre immédiatement pour éviter le timeout
+        await interaction.response.send_message("Réinitialisation du message de présence...", ephemeral=True)
         
-        # Get today's date
-        today = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
-        
-        # Fetch and delete today's presence messages from the bot
-        deleted = False
-        async for message in interaction.channel.history(limit=50):
-            if message.author == bot.user and hasattr(message, 'embeds'):
-                for embed in message.embeds:
-                    if embed.title and today in embed.title:
-                        await message.delete()
-                        deleted = True
-                        break
-                if deleted:
-                    break
-        
-        # Create new presence message
+        # Crée un nouveau message de présence (qui nettoiera automatiquement les anciens)
         channel = interaction.channel
         message = await send_presence_message(channel)
         
-        await interaction.followup.send("Les données de présence ont été réinitialisées.")
+        if message:
+            await interaction.edit_original_response(content="Les données de présence ont été réinitialisées.")
+        else:
+            await interaction.edit_original_response(content="Une erreur est survenue lors de la réinitialisation.")
         
     except Exception as e:
-        await interaction.followup.send(f"Une erreur est survenue : {str(e)}")
+        try:
+            await interaction.edit_original_response(content=f"Une erreur est survenue : {str(e)}")
+        except:
+            # Si la première réponse a échoué
+            await interaction.response.send_message(f"Une erreur est survenue : {str(e)}", ephemeral=True)
 
 @bot.tree.command(
     name="lrcpush", 
-    description="Envoie les données de présence vers Google Sheets pour une date donnée"
+    description="Envoie les données vers Google Sheets"
 )
 async def lrcpush(interaction: discord.Interaction, date: str = None):
     if not interaction.user.guild_permissions.administrator:
         await interaction.response.send_message("Vous n'avez pas les permissions nécessaires.", ephemeral=True)
         return
 
-    # Defer the response immediately
     await interaction.response.defer(ephemeral=True)
 
     try:
-        channel = bot.get_channel(CHANNEL_ID)
+        # Initialize target_datetime
+        target_datetime = None
+        
         if date is None:
             target_date = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
+            target_datetime = datetime.now(TIMEZONE)
         else:
             try:
                 target_datetime = datetime.strptime(date, "%d/%m/%Y")
@@ -299,57 +300,63 @@ async def lrcpush(interaction: discord.Interaction, date: str = None):
                 await interaction.followup.send("Format de date invalide. Utilisez le format DD/MM/YYYY")
                 return
 
-        # Trouve le message pour la date donnée
-        presence_message = None
-        async for message in channel.history(limit=100):
-            if message.author == bot.user and hasattr(message, 'embeds'):
-                for embed in message.embeds:
-                    if embed.title and target_date in embed.title:
-                        presence_message = message
-                        break
-                if presence_message:
-                    break
-
-        if not presence_message:
-            await interaction.followup.send(f"Aucun message de présence trouvé pour le {target_date}!")
-            return
-
+        # Récupération des présences depuis les dictionnaires
         count = 0
-        for reaction in presence_message.reactions:
-            if str(reaction.emoji) in PRESENCE_STATUS:
-                async for user in reaction.users():
-                    if not user.bot:
-                        presence = PRESENCE_STATUS[str(reaction.emoji)]
-                        # Utiliser l'ID de l'utilisateur pour récupérer l'heure
-                        arrival_time = arrival_times.get(str(user.id), None)
-                        
-                        if date:
-                            sheets_handler.add_entry(user.name, presence, TIMEZONE, target_datetime, arrival_time)
-                        else:
-                            sheets_handler.add_entry(user.name, presence, TIMEZONE, None, arrival_time)
-                        count += 1
+        for user_id, presence_state in presence_states.items():
+            try:
+                user = await interaction.guild.fetch_member(int(user_id))
+                if user and not user.bot:
+                    # Utiliser le bon dictionnaire d'heures selon l'état
+                    arrival_time = None
+                    if presence_state == "Présent":
+                        arrival_time = arrival_times.get(user_id)
+                    elif presence_state == "Ne sait pas":
+                        arrival_time = maybe_times.get(user_id)
+                    
+                    sheets_handler.add_entry(user.name, presence_state, TIMEZONE, target_datetime, arrival_time)
+                    count += 1
+            except discord.NotFound:
+                continue
 
-        # Vider le dictionnaire des heures après le push
-        arrival_times.clear()
+        # Vider les dictionnaires après le push
+        if not date:
+            arrival_times.clear()
+            maybe_times.clear()
+            presence_states.clear()
         
         await interaction.followup.send(f"Les données du {target_date} ont été envoyées vers Google Sheets! ({count} entrées)")
 
     except Exception as e:
+        print(f"Error in lrcpush: {e}")
         await interaction.followup.send(f"Une erreur est survenue : {str(e)}")
 
 class ArrivalTimeSelect(Select):
-    def __init__(self, user_id: int = None):
-        options = [
-            discord.SelectOption(label="20h00", value="20:00"),
-            discord.SelectOption(label="20h30", value="20:30"),
-            discord.SelectOption(label="21h00", value="21:00"),
-            discord.SelectOption(label="21h30", value="21:30"),
-            discord.SelectOption(label="22h00", value="22:00"),
-            discord.SelectOption(label="Plus tard", value="later")
-        ]
+    def __init__(self, user_id: int = None, is_maybe: bool = False):
+        self.is_maybe = is_maybe  # Garder en mémoire le type d'heure
+        if not is_maybe:
+            options = [
+                discord.SelectOption(label="20h30", value="20:30"),
+                discord.SelectOption(label="20h45", value="20:45"),
+                discord.SelectOption(label="21h00", value="21:00"),
+                discord.SelectOption(label="21h15", value="21:15"),
+                discord.SelectOption(label="21h30", value="21:30"),
+                discord.SelectOption(label="Plus tard", value="later")
+            ]
+            placeholder = "Sélectionnez votre heure d'arrivée"
+        else:
+            # Pour "Ne sait pas", plages de 15 minutes à partir de 21h30
+            options = [
+                discord.SelectOption(label="21h30", value="21:30+"),
+                discord.SelectOption(label="21h45", value="21:45+"),
+                discord.SelectOption(label="22h00", value="22:00+"),
+                discord.SelectOption(label="22h15", value="22:15+"),
+                discord.SelectOption(label="22h30", value="22:30+"),
+                discord.SelectOption(label="Plus tard", value="later")
+            ]
+            placeholder = "Pas avant quelle heure ?"
         
         super().__init__(
-            placeholder="Sélectionnez votre heure d'arrivée",
+            placeholder=placeholder,
             options=options,
             custom_id=f"arrival_time_{user_id if user_id else 'any'}"
         )
@@ -357,15 +364,185 @@ class ArrivalTimeSelect(Select):
     async def callback(self, interaction: discord.Interaction):
         try:
             time = self.values[0]
-            arrival_times[str(interaction.user.id)] = time
-            # Juste un defer sans message
+            user_id = str(interaction.user.id)
+            
+            # Stocker l'heure dans le bon dictionnaire
+            if self.is_maybe:
+                maybe_times[user_id] = time
+                # Nettoyer l'autre dictionnaire
+                arrival_times.pop(user_id, None)
+            else:
+                arrival_times[user_id] = time
+                # Nettoyer l'autre dictionnaire
+                maybe_times.pop(user_id, None)
+            
+            # Mettre à jour le message
+            channel = interaction.channel
             await interaction.response.defer()
+            
+            async for message in channel.history(limit=10):
+                if (message.author == interaction.client.user and 
+                    hasattr(message, 'embeds') and 
+                    len(message.embeds) > 0 and
+                    "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
+                    
+                    view = PresenceButtons()
+                    await view.update_presence_message(message)
+                    break
+                    
         except Exception as e:
             print(f"Error in ArrivalTimeSelect callback: {e}")
-            await interaction.response.send_message(
-                "Une erreur est survenue lors de la sélection de l'heure d'arrivée.",
-                ephemeral=True
+            pass
+
+class PresenceSelect(discord.ui.Select):
+    def __init__(self):
+        options = [
+            discord.SelectOption(
+                label="Présent",
+                emoji="✅",
+                value="present",
+                description="Je serai présent"
+            ),
+            discord.SelectOption(
+                label="Absent",
+                emoji="❌",
+                value="absent",
+                description="Je serai absent"
+            ),
+            discord.SelectOption(
+                label="Ne sait pas",
+                emoji="❓",
+                value="maybe",
+                description="Je ne sais pas encore"
             )
+        ]
+        super().__init__(
+            placeholder="Indiquez votre présence",
+            options=options,
+            custom_id="presence_select"
+        )
+    
+    async def callback(self, interaction: discord.Interaction):
+        try:
+            choice = self.values[0]
+            user_id = str(interaction.user.id)
+            
+            if choice == "present":
+                presence_states[user_id] = "Présent"
+                maybe_times.pop(user_id, None)
+                # Créer le sélecteur d'heure pour "Présent"
+                time_view = View()
+                time_select = ArrivalTimeSelect(interaction.user.id, is_maybe=False)
+                time_view.add_item(time_select)
+                await interaction.response.send_message(
+                    "À quelle heure pensez-vous arriver ?",
+                    view=time_view,
+                    ephemeral=True
+                )
+            elif choice == "absent":
+                presence_states[user_id] = "Absent"
+                arrival_times.pop(user_id, None)
+                maybe_times.pop(user_id, None)
+                await interaction.response.defer()
+            else:  # maybe
+                presence_states[user_id] = "Ne sait pas"
+                arrival_times.pop(user_id, None)
+                # Créer le sélecteur d'heure pour "Ne sait pas"
+                time_view = View()
+                time_select = ArrivalTimeSelect(interaction.user.id, is_maybe=True)
+                time_view.add_item(time_select)
+                await interaction.response.send_message(
+                    "Si vous venez, ce ne sera pas avant quelle heure ?",
+                    view=time_view,
+                    ephemeral=True
+                )
+
+            await self.view.update_presence_message(interaction.message)
+
+        except Exception as e:
+            print(f"Error in PresenceSelect callback: {e}")
+            await interaction.response.defer()
+
+class PresenceButtons(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(PresenceSelect())
+
+    async def update_presence_message(self, message):
+        today = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
+        content = f"**Présences pour le {today} :**\n\n"
+        
+        presents = [k for k, v in presence_states.items() if v == "Présent"]
+        absents = [k for k, v in presence_states.items() if v == "Absent"]
+        maybe = [k for k, v in presence_states.items() if v == "Ne sait pas"]
+
+        if presents:
+            content += "**Présents :**\n"
+            for user_id in presents:
+                user = message.guild.get_member(int(user_id))
+                if user:
+                    time = arrival_times.get(user_id, "")
+                    time_str = f" ({time})" if time else ""
+                    content += f"- {user.mention}{time_str}\n"
+
+        if absents:
+            content += "\n**Absents :**\n"
+            for user_id in absents:
+                user = message.guild.get_member(int(user_id))
+                if user:
+                    content += f"- {user.mention}\n"
+
+        if maybe:
+            content += "\n**Ne sait pas :**\n"
+            for user_id in maybe:
+                user = message.guild.get_member(int(user_id))
+                if user:
+                    time = maybe_times.get(user_id, "")
+                    time_str = f" (pas avant {time})" if time else ""
+                    content += f"- {user.mention}{time_str}\n"
+
+        embed = message.embeds[0]
+        embed.description = content
+        await message.edit(embed=embed, view=self)
+
+class PresenceView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(PresenceSelect())
+        self.add_item(ArrivalTimeSelect())
+
+    # Méthode pour mettre à jour l'état du message
+    async def update_presence_message(self, message):
+        today = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
+        content = f"**Présences pour le {today} :**\n\n"
+        
+        presents = [k for k, v in presence_states.items() if v == "Présent"]
+        absents = [k for k, v in presence_states.items() if v == "Absent"]
+        maybe = [k for k, v in presence_states.items() if v == "Ne sait pas"]
+
+        if presents:
+            content += "**Présents :**\n"
+            for user_id in presents:
+                user = message.guild.get_member(int(user_id))
+                time = arrival_times.get(user_id, "")
+                time_str = f" ({time})" if time else ""
+                content += f"- {user.mention}{time_str}\n"
+
+        if absents:
+            content += "\n**Absents :**\n"
+            for user_id in absents:
+                user = message.guild.get_member(int(user_id))
+                content += f"- {user.mention}\n"
+
+        if maybe:
+            content += "\n**Ne sait pas :**\n"
+            for user_id in maybe:
+                user = message.guild.get_member(int(user_id))
+                content += f"- {user.mention}\n"
+
+        embed = message.embeds[0]
+        embed.description = content
+        await message.edit(embed=embed, view=self)
 
 @tasks.loop(time=time(hour=7, minute=59))
 async def daily_push():
@@ -405,7 +582,7 @@ async def daily_push():
                         arrival_time = arrival_times.get(str(user.id), None)
                         sheets_handler.add_entry(user.name, presence, TIMEZONE, yesterday, arrival_time)
                         count += 1
-
+        
         arrival_times.clear()
         print(f"Push automatique effectué pour le {yesterday_str} ({count} entrées)")
 
