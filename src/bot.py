@@ -33,6 +33,13 @@ async def on_ready():
         commands = await bot.tree.sync()
         print(f"Les commandes ont été resynchronisées avec succès! ({len(commands)} commandes)")
         
+        # Définir l'activité du bot
+        activity = discord.Activity(
+            type=discord.ActivityType.watching,
+            name="/lrcinfo | V3"
+        )
+        await bot.change_presence(activity=activity)
+        
         # Démarrer les tâches planifiées
         daily_push.start()
         daily_presence_message.start()
@@ -148,12 +155,24 @@ async def lrcshowpresence(interaction: discord.Interaction, date: str = None):
                 message_parts.append(f"**Personnes présentes :**\n{chr(10).join(present_list)}")
 
         if maybe:
-            maybe_list = "\n- ".join(sorted(maybe))
-            message_parts.append(f"\n\n**Personnes pas sûres :**\n- {maybe_list}")
+            maybe_list = []
+            for user_id in maybe:
+                user = guild.get_member(int(user_id))
+                if user:
+                    time = maybe_times.get(user_id, "")
+                    time_str = f" (pas avant {time})" if time else ""
+                    maybe_list.append(f"- {user.mention}{time_str}")
+            if maybe_list:
+                message_parts.append(f"\n\n**Personnes pas sûres :**\n{chr(10).join(maybe_list)}")
         
         if absents:  # Ajout de la section des absents
-            absent_list = "\n- ".join(sorted(absents))
-            message_parts.append(f"\n\n**Personnes absentes :**\n- {absent_list}")
+            absent_list = []
+            for user_id in absents:
+                user = guild.get_member(int(user_id))
+                if user:
+                    absent_list.append(f"- {user.mention}")
+            if absent_list:
+                message_parts.append(f"\n\n**Personnes absentes :**\n{chr(10).join(absent_list)}")
 
         if not message_parts:
             await interaction.followup.send("Personne n'a encore répondu pour cette date.")
@@ -485,21 +504,21 @@ class PresenceButtons(discord.ui.View):
                     time_str = f" ({time})" if time else ""
                     content += f"- {user.mention}{time_str}\n"
 
-        if absents:
-            content += "\n**Absents :**\n"
-            for user_id in absents:
-                user = message.guild.get_member(int(user_id))
-                if user:
-                    content += f"- {user.mention}\n"
-
         if maybe:
-            content += "\n**Ne sait pas :**\n"
+            content += "\n**Personnes pas sûres :**\n"  # Un seul \n au début
             for user_id in maybe:
                 user = message.guild.get_member(int(user_id))
                 if user:
                     time = maybe_times.get(user_id, "")
                     time_str = f" (pas avant {time})" if time else ""
                     content += f"- {user.mention}{time_str}\n"
+
+        if absents:
+            content += "\n**Personnes absentes :**\n"  # Un seul \n au début
+            for user_id in absents:
+                user = message.guild.get_member(int(user_id))
+                if user:
+                    content += f"- {user.mention}\n"
 
         embed = message.embeds[0]
         embed.description = content
