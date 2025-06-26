@@ -1,60 +1,49 @@
-# LRC Presence Bot
+# LRC Presence Bot V3
 
-Bot Discord pour gérer les présences du LRC
+Bot Discord pour la gestion des présences du LRC.
 
-## Installation locale
+## Fonctionnalités
 
-### Prérequis
-- Python 3.12+
-- Git
-- Un compte Discord avec accès au Developer Portal
+### Système de Présence
+- Interface intuitive avec menu déroulant
+- 3 états possibles : Présent ✅, Absent ❌, Ne sait pas ❓
+- Sélection d'heure d'arrivée personnalisée
+- Affichage en temps réel des présences
+- Message quotidien automatique à 8h00
 
-### Configuration
+### Heures d'arrivée
+- Pour les présents : choix entre 20h30 et 21h30 (par palier de 15min)
+- Pour les "Ne sait pas" : estimation à partir de 21h30
+- Option "Plus tard" disponible
 
-1. Cloner le repository :
-```powershell
-git clone https://github.com/Alexandre-Machu/lrc-presence-bot.git
-cd lrc-presence-bot
+### Commandes
+- `/lrcshowpresence [date]` : Affiche la liste des présences
+- `/lrcsendpresencemessage` : Envoie un nouveau message de présence (admin)
+- `/lrcpush [date]` : Envoie les données vers Google Sheets (admin)
+- `/lrcreset` : Réinitialise le message de présence (admin)
+- `/lrcinfo` : Affiche l'aide et les informations du bot
+
+### Automatisation
+- Message de présence quotidien à 8h00
+- Push automatique des données vers Google Sheets à 7h59
+- Mise à jour en temps réel du message de présence
+
+## Installation
+
+1. Cloner le repository
+2. Installer les dépendances : `pip install -r requirements.txt`
+3. Configurer les variables d'environnement dans un fichier `.env`
+4. Lancer le bot : `python src/bot.py`
+
+## Configuration
+
+Fichier `.env` requis avec les variables suivantes :
+```
+DISCORD_TOKEN=your_discord_token
+GOOGLE_SPREADSHEET_ID=your_spreadsheet_id
+CHANNEL_ID=your_channel_id
 ```
 
-2. Créer un environnement virtuel :
-```powershell
-python -m venv venv
-.\venv\Scripts\activate
-```
+## Contribution
 
-3. Installer les dépendances :
-```powershell
-pip install -r requirements.txt
-```
-
-4. Configurer les fichiers d'environnement :
-- Créer un fichier `.env` avec :
-```ini
-DISCORD_TOKEN=votre_token_discord
-CHANNEL_ID=id_du_canal
-GOOGLE_SPREADSHEET_ID=id_de_la_feuille
-TIMEZONE=Europe/Paris
-```
-- Placer le fichier `google_credentials.json` dans le dossier `config/`
-
-### Lancement du bot
-
-1. Activer l'environnement virtuel :
-```powershell
-.\venv\Scripts\activate
-```
-
-2. Lancer le bot :
-```powershell
-python src/bot.py
-```
-
-## Commandes disponibles
-
-- `/lrcshowpresence` : Affiche la liste des personnes présentes
-- `/lrcshowstats` : Affiche les statistiques de présence
-
-## Déploiement
-
-Pour le déploiement sur Oracle Cloud, voir [DEPLOY.md](DEPLOY.md)
+Les pull requests sont les bienvenues. Pour les changements majeurs, merci d'ouvrir une issue d'abord.

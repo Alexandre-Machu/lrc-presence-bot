@@ -247,27 +247,34 @@ async def lrcsendpresencemessage(interaction: discord.Interaction):
 @bot.tree.command(name="lrcinfo", description="Affiche les informations sur les commandes du bot")
 async def lrcinfo(interaction: discord.Interaction):
     info_message = f"""
-**🤖 Bot LRC - Guide des commandes**
+**🤖 Bot LRC - Guide des commandes V3**
 
 **Liens utiles :**
 • Google Sheets : https://docs.google.com/spreadsheets/d/{GOOGLE_SPREADSHEET_ID}
 • GitHub : https://github.com/Alexandre-Machu/lrc-presence-bot
 
-**Commandes d'information :**
+**Commandes utilisateur :**
 • `/lrcshowpresence [date]` - Affiche la liste des présences
   - Sans date : affiche les présences du jour
-  - Avec date : affiche les présences pour la date spécifiée (format: DD/MM/YYYY)
+  - Avec date : affiche les présences historiques (format: DD/MM/YYYY)
 
 **Commandes administrateur :**
 • `/lrcsendpresencemessage` - Envoie un nouveau message de présence
 • `/lrcpush [date]` - Envoie les données vers Google Sheets
-  - Sans date : envoie les données du jour
-  - Avec date : envoie les données pour la date spécifiée (format: DD/MM/YYYY)
+• `/lrcreset` - Réinitialise le message de présence
 
-**Réactions disponibles :**
-✅ : Présent
-❌ : Absent
-❓ : Ne sait pas
+**Fonctionnalités :**
+• Sélection de présence : Présent ✅ | Absent ❌ | Ne sait pas ❓
+• Heure d'arrivée pour les présents : de 20h30 à 21h30
+• Heure estimée pour les "Ne sait pas" : à partir de 21h30
+• Message quotidien automatique à 8h00
+• Push automatique des données à 7h59
+
+**Nouveautés V3 :**
+• Interface avec menu déroulant
+• Sélection d'heures personnalisée
+• Affichage en temps réel des présences
+• Meilleure gestion des heures "Ne sait pas"
 """
     await interaction.response.send_message(info_message, ephemeral=True)
 
