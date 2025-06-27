@@ -43,6 +43,7 @@ async def on_ready():
         # Démarrer les tâches planifiées
         daily_push.start()
         daily_presence_message.start()
+        daily_showpresence.start()  # Démarrer la tâche d'affichage quotidien
         
     except Exception as e:
         print(f"Erreur lors de la synchronisation des commandes: {e}")
@@ -236,9 +237,10 @@ async def lrcsendpresencemessage(interaction: discord.Interaction):
     # Vérifier si un message existe déjà pour aujourd'hui
     today = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
     async for message in channel.history(limit=50):
-        if message.author == bot.user and today in message.content:
-            await interaction.response.send_message("Un message de présence existe déjà pour aujourd'hui.", ephemeral=True)
-            return
+        if message.author == bot.user and hasattr(message, 'embeds') and len(message.embeds) > 0:
+            if today in message.embeds[0].title:
+                await interaction.response.send_message("Un message de présence existe déjà pour aujourd'hui.", ephemeral=True)
+                return
 
     await interaction.response.defer(ephemeral=True)
     await send_presence_message(channel)
@@ -281,24 +283,24 @@ async def lrcinfo(interaction: discord.Interaction):
 @bot.tree.command(name="lrcreset", description="Réinitialise le message de présence")
 async def lrcreset(interaction: discord.Interaction):
     try:
-        # Répondre immédiatement pour éviter le timeout
-        await interaction.response.send_message("Réinitialisation du message de présence...", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
         
-        # Crée un nouveau message de présence (qui nettoiera automatiquement les anciens)
-        channel = interaction.channel
+        # Toujours utiliser le canal configuré
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            await interaction.followup.send("Le canal configuré est introuvable.", ephemeral=True)
+            return
+            
         message = await send_presence_message(channel)
         
         if message:
-            await interaction.edit_original_response(content="Les données de présence ont été réinitialisées.")
+            await interaction.followup.send("Les données de présence ont été réinitialisées.")
         else:
-            await interaction.edit_original_response(content="Une erreur est survenue lors de la réinitialisation.")
+            await interaction.followup.send("Une erreur est survenue lors de la réinitialisation.")
         
     except Exception as e:
-        try:
-            await interaction.edit_original_response(content=f"Une erreur est survenue : {str(e)}")
-        except:
-            # Si la première réponse a échoué
-            await interaction.response.send_message(f"Une erreur est survenue : {str(e)}", ephemeral=True)
+        print(f"Error in lrcreset: {e}")
+        await interaction.followup.send(f"Une erreur est survenue : {str(e)}")
 
 @bot.tree.command(
     name="lrcpush", 
@@ -570,62 +572,110 @@ class PresenceView(discord.ui.View):
         embed.description = content
         await message.edit(embed=embed, view=self)
 
-@tasks.loop(time=time(hour=7, minute=59))
+@tasks.loop(time=time(hour=6, minute=0))  # 8h00 UTC+2
 async def daily_push():
     try:
-        # Calculer la date d'hier
-        yesterday = datetime.now(TIMEZONE) - timedelta(days=1)
-        yesterday_str = yesterday.strftime("%d/%m/%Y")
-        
-        # Simuler la commande lrcpush pour hier
         channel = bot.get_channel(CHANNEL_ID)
         if not channel:
             print("Erreur: Canal introuvable pour le push quotidien")
             return
 
-        # Trouve le message pour hier
-        presence_message = None
-        async for message in channel.history(limit=100):
-            if message.author == bot.user and hasattr(message, 'embeds'):
-                for embed in message.embeds:
-                    if embed.title and yesterday_str in embed.title:
-                        presence_message = message
-                        break
-                if presence_message:
-                    break
-
-        if not presence_message:
-            print(f"Aucun message de présence trouvé pour le {yesterday_str}")
-            return
-
-        # Push les données
         count = 0
-        for reaction in presence_message.reactions:
-            if str(reaction.emoji) in PRESENCE_STATUS:
-                async for user in reaction.users():
-                    if not user.bot:
-                        presence = PRESENCE_STATUS[str(reaction.emoji)]
-                        arrival_time = arrival_times.get(str(user.id), None)
-                        sheets_handler.add_entry(user.name, presence, TIMEZONE, yesterday, arrival_time)
-                        count += 1
+        for user_id, presence_state in presence_states.items():
+            try:
+                user = await bot.fetch_user(int(user_id))
+                if user and not user.bot:
+                    arrival_time = None
+                    if presence_state == "Présent":
+                        arrival_time = arrival_times.get(user_id)
+                    elif presence_state == "Ne sait pas":
+                        arrival_time = maybe_times.get(user_id)
+                    
+                    sheets_handler.add_entry(user.name, presence_state, TIMEZONE, datetime.now(TIMEZONE), arrival_time)
+                    count += 1
+            except discord.NotFound:
+                continue
+
+        print(f"Push automatique effectué ({count} entrées)")
         
+        # Clear après le push
         arrival_times.clear()
-        print(f"Push automatique effectué pour le {yesterday_str} ({count} entrées)")
+        maybe_times.clear()
+        presence_states.clear()
 
     except Exception as e:
         print(f"Erreur lors du push quotidien : {str(e)}")
 
-@tasks.loop(time=time(hour=8, minute=0))
+@tasks.loop(time=time(hour=8, minute=0))  # 10h00 UTC+2
 async def daily_presence_message():
     try:
+        # Reset AVANT d'envoyer le nouveau message
+        arrival_times.clear()
+        maybe_times.clear()
+        presence_states.clear()
+        
         channel = bot.get_channel(CHANNEL_ID)
         if channel:
+            await clear_old_presence_messages(channel)  # Nettoie les anciens messages
             await send_presence_message(channel)
             print("Message de présence quotidien envoyé")
         else:
             print("Erreur: Canal introuvable pour le message quotidien")
     except Exception as e:
         print(f"Erreur lors de l'envoi du message quotidien : {str(e)}")
+
+@tasks.loop(time=time(hour=18, minute=15))  # 20h15 UTC+2
+async def daily_showpresence():
+    try:
+        channel = bot.get_channel(CHANNEL_ID)
+        if not channel:
+            print("Erreur: Canal introuvable pour l'affichage quotidien des présences")
+            return
+            
+        # Construction du message
+        message_parts = []
+        guild = channel.guild
+        
+        presents = [k for k, v in presence_states.items() if v == "Présent"]
+        maybe = [k for k, v in presence_states.items() if v == "Ne sait pas"]
+        absents = [k for k, v in presence_states.items() if v == "Absent"]
+
+        if presents:
+            present_list = []
+            for user_id in presents:
+                user = guild.get_member(int(user_id))
+                if user:
+                    time = arrival_times.get(user_id, "")
+                    time_str = f" ({time})" if time else ""
+                    present_list.append(f"- {user.mention}{time_str}")
+            if present_list:
+                message_parts.append(f"**Personnes présentes :**\n{chr(10).join(present_list)}")
+
+        if maybe:
+            maybe_list = []
+            for user_id in maybe:
+                user = guild.get_member(int(user_id))
+                if user:
+                    time = maybe_times.get(user_id, "")
+                    time_str = f" (pas avant {time})" if time else ""
+                    maybe_list.append(f"- {user.mention}{time_str}")
+            if maybe_list:
+                message_parts.append(f"**Personnes pas sûres :**\n{chr(10).join(maybe_list)}")
+
+        if absents:
+            absent_list = []
+            for user_id in absents:
+                user = guild.get_member(int(user_id))
+                if user:
+                    absent_list.append(f"- {user.mention}")
+            if absent_list:
+                message_parts.append(f"**Personnes absentes :**\n{chr(10).join(absent_list)}")
+
+        if message_parts:
+            await channel.send("\n".join(message_parts))
+            
+    except Exception as e:
+        print(f"Erreur lors de l'affichage quotidien des présences : {str(e)}")
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
