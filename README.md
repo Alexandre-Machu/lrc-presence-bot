@@ -25,8 +25,10 @@ Bot Discord pour la gestion des présences du LRC.
 
 ### Automatisation
 - Message de présence quotidien à 8h00
-- Push automatique des données vers Google Sheets à 7h59
+- Push automatique des données vers Google Sheets à 23h30
 - Mise à jour en temps réel du message de présence
+
+**Note :** Le bot n'envoie plus de récapitulatif automatique des présences à 20h15.
 
 ## Installation
 

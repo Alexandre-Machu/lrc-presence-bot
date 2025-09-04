@@ -28,25 +28,24 @@ presence_states = {}  # Pour stocker les états de présence {user_id: state}
 async def on_ready():
     print(f'{bot.user} est connecté!')
     
+    # Synchronise les nouvelles commandes
     try:
-        # Synchronise les nouvelles commandes
         commands = await bot.tree.sync()
         print(f"Les commandes ont été resynchronisées avec succès! ({len(commands)} commandes)")
-        
-        # Définir l'activité du bot
-        activity = discord.Activity(
-            type=discord.ActivityType.playing,
-            name="/lrcinfo | V1.3.3"
-        )
-        await bot.change_presence(activity=activity)
-        
-        # Démarrer les tâches planifiées
-        daily_push.start()
-        daily_presence_message.start()
-        daily_showpresence.start()  # Démarrer la tâche d'affichage quotidien
-        
     except Exception as e:
         print(f"Erreur lors de la synchronisation des commandes: {e}")
+
+    # Définir l'activité du bot
+    activity = discord.Activity(
+        type=discord.ActivityType.playing,
+        name="/lrcinfo | V1.3.4"
+    )
+    await bot.change_presence(activity=activity)
+
+    # Démarrer les tâches planifiées
+    daily_push.start()
+    daily_presence_message.start()
+    # daily_showpresence.start()  # Suppression de la tâche d'affichage quotidien à 20h15
 
 async def clear_old_presence_messages(channel):
     """Nettoie les anciens messages de présence du bot"""
@@ -249,7 +248,7 @@ async def lrcsendpresencemessage(interaction: discord.Interaction):
 @bot.tree.command(name="lrcinfo", description="Affiche les informations sur les commandes du bot")
 async def lrcinfo(interaction: discord.Interaction):
     info_message = """
-🤖 **Bot LRC - Guide des commandes V1.3.2**
+🤖 **Bot LRC - Guide des commandes V1.3.4**
 
 ━━━━━━━━━ **Commandes** ━━━━━━━━━
 
@@ -277,14 +276,6 @@ async def lrcinfo(interaction: discord.Interaction):
 **Automatisation**
 • Message quotidien → 8h00
 • Push des données → 23h30
-• Récapitulatif → 20h15
-
-━━━━━━━━ **Nouveautés V1.3.2** ━━━━━━━━
-
-• Interface avec menu déroulant
-• Sélection d'heures personnalisée
-• Affichage en temps réel
-• Meilleure gestion des "Ne sait pas"
 """
     await interaction.response.send_message(info_message, ephemeral=True)
 
@@ -629,58 +620,8 @@ async def daily_presence_message():
     except Exception as e:
         print(f"Erreur lors de l'envoi du message quotidien : {str(e)}")
 
-@tasks.loop(time=time(hour=18, minute=15))  # 20h15 UTC+2
-async def daily_showpresence():
-    try:
-        channel = bot.get_channel(CHANNEL_ID)
-        if not channel:
-            print("Erreur: Canal introuvable pour l'affichage quotidien des présences")
-            return
 
-        message_parts = []
-        guild = channel.guild
-        today = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
-        
-        presents = [k for k, v in presence_states.items() if v == "Présent"]
-        maybe = [k for k, v in presence_states.items() if v == "Ne sait pas"]
-        absents = [k for k, v in presence_states.items() if v == "Absent"]
-
-        if presents:
-            present_lines = ["**Personnes présentes :**"]
-            for user_id in presents:
-                user = guild.get_member(int(user_id))
-                if user:
-                    time = arrival_times.get(user_id, "")
-                    time_str = f" ({time})" if time else ""
-                    present_lines.append(f"- <@{user.id}>{time_str}")
-            message_parts.append("\n".join(present_lines))
-
-        if maybe:
-            maybe_lines = ["\n**Personnes pas sûres :**"]
-            for user_id in maybe:
-                user = guild.get_member(int(user_id))
-                if user:
-                    time = maybe_times.get(user_id, "")
-                    time_str = f" (pas avant {time})" if time else ""
-                    maybe_lines.append(f"- <@{user.id}>{time_str}")
-            message_parts.append("\n".join(maybe_lines))
-
-        if absents:
-            absent_lines = ["\n**Personnes absentes :**"]
-            for user_id in absents:
-                user = guild.get_member(int(user_id))
-                if user:
-                    absent_lines.append(f"- <@{user.id}>")
-            message_parts.append("\n".join(absent_lines))
-
-        if message_parts:
-            final_message = f"**Récapitulatif des présences du {today} :**\n\n" + "\n".join(message_parts)
-            await channel.send(final_message)
-        else:
-            await channel.send(f"Aucune présence enregistrée pour le {today}")
-            
-    except Exception as e:
-        print(f"Erreur lors de l'affichage quotidien des présences : {str(e)}")
+## Tâche daily_showpresence supprimée : plus d'envoi automatique du récapitulatif à 20h15
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
