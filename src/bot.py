@@ -69,7 +69,7 @@ async def on_ready():
 
     activity = discord.Activity(
         type=discord.ActivityType.playing,
-        name="/lrcinfo | V1.4.3"  # <-- Upgrade version ici
+        name="/lrcinfo | V1.4.4"  # <-- Upgrade version ici
     )
     await bot.change_presence(activity=activity)
     daily_push.start()
@@ -225,6 +225,12 @@ class PresenceSelect(discord.ui.Select):
                 arrival_times.pop(user_id, None)
                 maybe_times.pop(user_id, None)
                 user_games.pop(user_id, None)
+                # Retirer les rôles "jeux" si possible
+                member = interaction.guild.get_member(interaction.user.id)
+                if member:
+                    roles_to_remove = [role for role in member.roles if role.name in GAME_ROLE_NAMES]
+                    if roles_to_remove:
+                        await member.remove_roles(*roles_to_remove, reason="Absent ce soir (LRC Bot)")
             else:
                 presence_states[user_id] = "Ne sait pas"
                 arrival_times.pop(user_id, None)
@@ -311,7 +317,7 @@ class PresenceButtons(discord.ui.View):
 )
 async def lrcinfo(interaction: discord.Interaction):
     info_message = """
-🤖 **Bot LRC - Guide des commandes V1.4.3**
+🤖 **Bot LRC - Guide des commandes V1.4.4**
 
 ━━━━━━━━━ **Commandes** ━━━━━━━━━
 
