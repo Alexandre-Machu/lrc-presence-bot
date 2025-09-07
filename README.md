@@ -1,38 +1,31 @@
-# LRC Presence Bot V3
+# LRC Presence Bot V1.4.0
 
 Bot Discord pour la gestion des présences du LRC.
 
-## Fonctionnalités
+## Fonctionnalités principales
 
-### Système de Présence
-- Interface intuitive avec menu déroulant
-- 3 états possibles : Présent ✅, Absent ❌, Ne sait pas ❓
-- Sélection d'heure d'arrivée personnalisée
-- Affichage en temps réel des présences
-- Message quotidien automatique à 8h00
+- Indique ta présence et ton heure d’arrivée
+- Sélectionne les jeux pour lesquels tu es dispo (avec emojis)
+- Affiche le nombre de joueurs par jeu chaque soir
+- Gestion des anniversaires (ajout, suppression, notification)
+- Export des présences vers Google Sheets
 
-### Heures d'arrivée
-- Pour les présents : choix entre 20h30 et 21h30 (par palier de 15min)
-- Pour les "Ne sait pas" : estimation à partir de 21h30
-- Option "Plus tard" disponible
+## Commandes
 
-### Commandes
-#### Présences
-- `/lrcshowpresence [date]` : Affiche la liste des présences
-- `/lrcsendpresencemessage` : Envoie un nouveau message de présence (admin)
-- `/lrcpush [date]` : Envoie les données vers Google Sheets (admin)
-- `/lrcreset` : Réinitialise le message de présence (admin)
-- `/lrcinfo` : Affiche l'aide et les informations du bot
-
-#### Anniversaires
-- `/lrcaddbirthday @user JJ/MM` : Ajoute ou modifie l'anniversaire d'un membre (admin)
+- `/lrcshowpresence [date]` : Liste des présences (et jeux associés)
+- `/lrcsendpresencemessage` : Envoie manuellement le message de présence
+- `/lrcpush [date]` : Export vers Google Sheets
+- `/lrcreset` : Réinitialise le message de présence
+- `/lrcaddbirthday @user JJ/MM` : Ajoute ou modifie l'anniversaire d'un membre
+- `/lrcremovebirthday @user` : Supprime l'anniversaire d'un membre
 - `/lrcbirthdays` : Affiche les anniversaires à venir
-- `/lrcremovebirthday @user` : Supprime l'anniversaire d'un membre (admin)
+- `/lrcinfo` : Affiche le guide des commandes
 
-### Automatisation
+## Automatisation
+
 - Message de présence quotidien à 8h00
 - Push automatique des données vers Google Sheets à 23h30
-- Mise à jour en temps réel du message de présence
+- Notification anniversaire à 8h05
 
 **Note :** Le bot n'envoie plus de récapitulatif automatique des présences à 20h15.
 
