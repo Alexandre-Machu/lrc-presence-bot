@@ -463,5 +463,10 @@ async def birthday_notifier():
     except Exception as e:
         print(f"Erreur dans birthday_notifier : {e}")
 
+@bot.command()
+async def sync(ctx):
+    synced = await bot.tree.sync()
+    await ctx.send(f"Commandes slash synchronisées ({len(synced)})")
+
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
