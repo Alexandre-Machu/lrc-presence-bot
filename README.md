@@ -17,11 +17,17 @@ Bot Discord pour la gestion des présences du LRC.
 - Option "Plus tard" disponible
 
 ### Commandes
+#### Présences
 - `/lrcshowpresence [date]` : Affiche la liste des présences
 - `/lrcsendpresencemessage` : Envoie un nouveau message de présence (admin)
 - `/lrcpush [date]` : Envoie les données vers Google Sheets (admin)
 - `/lrcreset` : Réinitialise le message de présence (admin)
 - `/lrcinfo` : Affiche l'aide et les informations du bot
+
+#### Anniversaires
+- `/lrcaddbirthday @user JJ/MM` : Ajoute ou modifie l'anniversaire d'un membre (admin)
+- `/lrcbirthdays` : Affiche les anniversaires à venir
+- `/lrcremovebirthday @user` : Supprime l'anniversaire d'un membre (admin)
 
 ### Automatisation
 - Message de présence quotidien à 8h00

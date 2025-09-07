@@ -6,6 +6,8 @@ import discord
 from discord.ext import commands, tasks
 from discord.ui import Select, View
 from datetime import datetime, timedelta, time  # Ajout de time
+import json
+
 from config.settings import *
 from utils.sheets_handler import SheetsHandler
 
@@ -24,6 +26,18 @@ arrival_times = {}  # Pour stocker les heures des présents {user_id: time}
 maybe_times = {}    # Pour stocker les heures des "Ne sait pas" {user_id: time}
 presence_states = {}  # Pour stocker les états de présence {user_id: state}
 
+BIRTHDAYS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "birthdays.json")
+
+def load_birthdays():
+    if not os.path.exists(BIRTHDAYS_FILE):
+        return {}
+    with open(BIRTHDAYS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_birthdays(data):
+    with open(BIRTHDAYS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
 @bot.event
 async def on_ready():
     print(f'{bot.user} est connecté!')
@@ -38,13 +52,14 @@ async def on_ready():
     # Définir l'activité du bot
     activity = discord.Activity(
         type=discord.ActivityType.playing,
-        name="/lrcinfo | V1.3.4"
+        name="/lrcinfo | V1.3.5"
     )
     await bot.change_presence(activity=activity)
 
     # Démarrer les tâches planifiées
     daily_push.start()
     daily_presence_message.start()
+    birthday_notifier.start()
     # daily_showpresence.start()  # Suppression de la tâche d'affichage quotidien à 20h15
 
 async def clear_old_presence_messages(channel):
@@ -248,7 +263,7 @@ async def lrcsendpresencemessage(interaction: discord.Interaction):
 @bot.tree.command(name="lrcinfo", description="Affiche les informations sur les commandes du bot")
 async def lrcinfo(interaction: discord.Interaction):
     info_message = """
-🤖 **Bot LRC - Guide des commandes V1.3.4**
+🤖 **Bot LRC - Guide des commandes V1.3.5**
 
 ━━━━━━━━━ **Commandes** ━━━━━━━━━
 
@@ -620,8 +635,72 @@ async def daily_presence_message():
     except Exception as e:
         print(f"Erreur lors de l'envoi du message quotidien : {str(e)}")
 
+## Notification automatique le jour J
+@tasks.loop(time=time(hour=8, minute=5))
+async def birthday_notifier():
+    try:
+        birthdays = load_birthdays()
+        today = datetime.now(TIMEZONE).strftime("%d/%m")
+        channel = bot.get_channel(CHANNEL_ID)
+        for user_id, date_str in birthdays.items():
+            if date_str == today:
+                member = channel.guild.get_member(int(user_id))
+                if member:
+                    await channel.send(f"🎉 **Joyeux anniversaire {member.mention} !** 🎂")
+    except Exception as e:
+        print(f"Erreur dans birthday_notifier : {e}")
 
-## Tâche daily_showpresence supprimée : plus d'envoi automatique du récapitulatif à 20h15
+@bot.tree.command(name="lrcaddbirthday", description="Ajoute ou modifie la date d'anniversaire d'un membre")
+async def lrcaddbirthday(interaction: discord.Interaction, user: discord.Member, date: str):
+    try:
+        # Vérification du format
+        try:
+            datetime.strptime(date, "%d/%m")
+        except ValueError:
+            await interaction.response.send_message("Format de date invalide. Utilisez JJ/MM.", ephemeral=True)
+            return
+
+        birthdays = load_birthdays()
+        birthdays[str(user.id)] = date
+        save_birthdays(birthdays)
+        await interaction.response.send_message(f"Anniversaire de {user.mention} enregistré pour le {date} !", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"Erreur : {e}", ephemeral=True)
+
+@bot.tree.command(name="lrcbirthdays", description="Affiche les anniversaires à venir")
+async def lrcbirthdays(interaction: discord.Interaction):
+    try:
+        birthdays = load_birthdays()
+        today = datetime.now(TIMEZONE)
+        upcoming = []
+        for user_id, date_str in birthdays.items():
+            bday = datetime.strptime(date_str, "%d/%m")
+            bday_this_year = bday.replace(year=today.year)
+            delta = (bday_this_year - today).days
+            if 0 <= delta <= 30:  # Anniversaires dans les 30 jours
+                member = interaction.guild.get_member(int(user_id))
+                if member:
+                    upcoming.append(f"- {member.mention} : {date_str}")
+        if upcoming:
+            msg = "**Anniversaires à venir (30 jours) :**\n" + "\n".join(upcoming)
+        else:
+            msg = "Aucun anniversaire à venir dans les 30 jours."
+        await interaction.response.send_message(msg)
+    except Exception as e:
+        await interaction.response.send_message(f"Erreur : {e}")
+
+@bot.tree.command(name="lrcremovebirthday", description="Supprime l'anniversaire d'un membre")
+async def lrcremovebirthday(interaction: discord.Interaction, user: discord.Member):
+    try:
+        birthdays = load_birthdays()
+        if str(user.id) in birthdays:
+            del birthdays[str(user.id)]
+            save_birthdays(birthdays)
+            await interaction.response.send_message(f"Anniversaire de {user.mention} supprimé.", ephemeral=True)
+        else:
+            await interaction.response.send_message("Aucun anniversaire enregistré pour ce membre.", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"Erreur : {e}", ephemeral=True)
 
 if __name__ == "__main__":
     bot.run(DISCORD_TOKEN)
