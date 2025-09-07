@@ -69,7 +69,7 @@ async def on_ready():
 
     activity = discord.Activity(
         type=discord.ActivityType.playing,
-        name="/lrcinfo | V1.4.1"
+        name="/lrcinfo | V1.4.2"
     )
     await bot.change_presence(activity=activity)
     daily_push.start()
@@ -228,18 +228,14 @@ class PresenceSelect(discord.ui.Select):
                 presence_states[user_id] = "Présent"
                 maybe_times.pop(user_id, None)
                 # Envoie le menu d'heure
-                time_view = View()
-                time_select = ArrivalTimeSelect(interaction.user.id, is_maybe=False)
-                time_view.add_item(time_select)
+                time_view = ResendArrivalTimeView(interaction.user.id, is_maybe=False)
                 await interaction.response.send_message(
                     "À quelle heure pensez-vous arriver ?",
                     view=time_view,
                     ephemeral=True
                 )
                 # Envoie le menu de jeux dans un second message
-                game_view = View()
-                game_select = GameSelect(interaction.user.id)
-                game_view.add_item(game_select)
+                game_view = ResendGameView(interaction.user.id)
                 await interaction.followup.send(
                     "Sélectionne tes jeux dispo.",
                     view=game_view,
@@ -254,19 +250,13 @@ class PresenceSelect(discord.ui.Select):
             else:
                 presence_states[user_id] = "Ne sait pas"
                 arrival_times.pop(user_id, None)
-                # Envoie le menu d'heure
-                time_view = View()
-                time_select = ArrivalTimeSelect(interaction.user.id, is_maybe=True)
-                time_view.add_item(time_select)
+                time_view = ResendArrivalTimeView(interaction.user.id, is_maybe=True)
                 await interaction.response.send_message(
                     "Si vous venez, ce ne sera pas avant quelle heure ?",
                     view=time_view,
                     ephemeral=True
                 )
-                # Envoie le menu de jeux dans un second message
-                game_view = View()
-                game_select = GameSelect(interaction.user.id)
-                game_view.add_item(game_select)
+                game_view = ResendGameView(interaction.user.id)
                 await interaction.followup.send(
                     "Sélectionne tes jeux dispo.",
                     view=game_view,
@@ -343,6 +333,45 @@ class PresenceButtons(discord.ui.View):
         embed = message.embeds[0]
         embed.description = content
         await message.edit(embed=embed, view=self)
+
+class ResendArrivalTimeView(View):
+    def __init__(self, user_id, is_maybe):
+        super().__init__(timeout=None)
+        self.add_item(ArrivalTimeSelect(user_id, is_maybe))
+        self.add_item(ResendArrivalTimeButton(user_id, is_maybe))
+
+class ResendGameView(View):
+    def __init__(self, user_id):
+        super().__init__(timeout=None)
+        self.add_item(GameSelect(user_id))
+        self.add_item(ResendGameButton(user_id))
+
+class ResendArrivalTimeButton(discord.ui.Button):
+    def __init__(self, user_id, is_maybe):
+        super().__init__(label="Renvoyer le menu heure", style=discord.ButtonStyle.secondary)
+        self.user_id = user_id
+        self.is_maybe = is_maybe
+
+    async def callback(self, interaction: discord.Interaction):
+        view = ResendArrivalTimeView(self.user_id, self.is_maybe)
+        await interaction.response.send_message(
+            "Sélectionnez à nouveau votre heure d'arrivée.",
+            view=view,
+            ephemeral=True
+        )
+
+class ResendGameButton(discord.ui.Button):
+    def __init__(self, user_id):
+        super().__init__(label="Renvoyer le menu jeux", style=discord.ButtonStyle.secondary)
+        self.user_id = user_id
+
+    async def callback(self, interaction: discord.Interaction):
+        view = ResendGameView(self.user_id)
+        await interaction.response.send_message(
+            "Sélectionnez à nouveau vos jeux dispo.",
+            view=view,
+            ephemeral=True
+        )
 
 @bot.tree.command(
     name="lrcinfo",
