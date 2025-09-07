@@ -271,11 +271,14 @@ async def lrcinfo(interaction: discord.Interaction):
 • `/lrcshowpresence [date]` - Liste des présences
   › Sans date : présences du jour
   › Avec date : historique (DD/MM/YYYY)
+• `/lrcbirthdays` - Affiche les anniversaires à venir
 
 **Administrateur**
 • `/lrcsendpresencemessage` - Nouveau message de présence
 • `/lrcpush [date]` - Export vers Google Sheets
 • `/lrcreset` - Réinitialisation du message
+• `/lrcaddbirthday @user JJ/MM` - Ajoute ou modifie l'anniversaire d'un membre
+• `/lrcremovebirthday @user` - Supprime l'anniversaire d'un membre
 
 ━━━━━━━━ **Paramètres** ━━━━━━━━
 
@@ -291,6 +294,8 @@ async def lrcinfo(interaction: discord.Interaction):
 **Automatisation**
 • Message quotidien → 8h00
 • Push des données → 23h30
+• Notification anniversaire → 8h05
+
 """
     await interaction.response.send_message(info_message, ephemeral=True)
 
