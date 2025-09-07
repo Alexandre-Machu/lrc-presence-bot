@@ -227,14 +227,22 @@ class PresenceSelect(discord.ui.Select):
             if choice == "present":
                 presence_states[user_id] = "Présent"
                 maybe_times.pop(user_id, None)
+                # Envoie le menu d'heure
                 time_view = View()
                 time_select = ArrivalTimeSelect(interaction.user.id, is_maybe=False)
                 time_view.add_item(time_select)
-                game_select = GameSelect(interaction.user.id)
-                time_view.add_item(game_select)
                 await interaction.response.send_message(
-                    "À quelle heure pensez-vous arriver ? Sélectionne aussi tes jeux dispo.",
+                    "À quelle heure pensez-vous arriver ?",
                     view=time_view,
+                    ephemeral=True
+                )
+                # Envoie le menu de jeux dans un second message
+                game_view = View()
+                game_select = GameSelect(interaction.user.id)
+                game_view.add_item(game_select)
+                await interaction.followup.send(
+                    "Sélectionne tes jeux dispo.",
+                    view=game_view,
                     ephemeral=True
                 )
             elif choice == "absent":
@@ -246,16 +254,25 @@ class PresenceSelect(discord.ui.Select):
             else:
                 presence_states[user_id] = "Ne sait pas"
                 arrival_times.pop(user_id, None)
+                # Envoie le menu d'heure
                 time_view = View()
                 time_select = ArrivalTimeSelect(interaction.user.id, is_maybe=True)
                 time_view.add_item(time_select)
-                game_select = GameSelect(interaction.user.id)
-                time_view.add_item(game_select)
                 await interaction.response.send_message(
-                    "Si vous venez, ce ne sera pas avant quelle heure ? Sélectionne aussi tes jeux dispo.",
+                    "Si vous venez, ce ne sera pas avant quelle heure ?",
                     view=time_view,
                     ephemeral=True
                 )
+                # Envoie le menu de jeux dans un second message
+                game_view = View()
+                game_select = GameSelect(interaction.user.id)
+                game_view.add_item(game_select)
+                await interaction.followup.send(
+                    "Sélectionne tes jeux dispo.",
+                    view=game_view,
+                    ephemeral=True
+                )
+            # Met à jour le message principal
             channel = interaction.channel
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
