@@ -139,16 +139,14 @@ class ArrivalTimeSelect(Select):
             else:
                 arrival_times[user_id] = time
                 maybe_times.pop(user_id, None)
-            # Après le choix de l'heure, affiche le menu de jeux
-            game_view = View()
-            game_select = GameSelect(interaction.user.id)
-            game_view.add_item(game_select)
+            # Envoie le menu de jeux en réponse
+            game_view = ResendGameView(interaction.user.id)
             await interaction.response.send_message(
                 "Sélectionne tes jeux dispo.",
                 view=game_view,
                 ephemeral=True
             )
-            # Met à jour le message principal
+            # Met à jour le message principal (mais via followup, pour ne pas double-répondre)
             channel = interaction.channel
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
