@@ -21,6 +21,8 @@ intents.guilds = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 sheets_handler = SheetsHandler(GOOGLE_SPREADSHEET_ID)
 
+GUILD_ID = 948537493593129011  # Ton serveur Discord
+
 # Variables globales
 arrival_times = {}      # {user_id: time}
 maybe_times = {}        # {user_id: time}
@@ -60,14 +62,14 @@ def save_birthdays(data):
 async def on_ready():
     print(f'{bot.user} est connecté!')
     try:
-        commands_synced = await bot.tree.sync()
+        commands_synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
         print(f"Commandes slash synchronisées ({len(commands_synced)})")
     except Exception as e:
         print(f"Erreur sync commandes : {e}")
 
     activity = discord.Activity(
         type=discord.ActivityType.playing,
-        name="/lrcinfo | V1.4.0"
+        name="/lrcinfo | V1.4.1"
     )
     await bot.change_presence(activity=activity)
     daily_push.start()
@@ -142,7 +144,7 @@ class ArrivalTimeSelect(Select):
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
                     hasattr(message, 'embeds') and 
-                    len(message.embeds) > 0 and
+                    message.embeds and
                     "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
                     view = PresenceButtons()
                     await view.update_presence_message(message)
@@ -165,18 +167,22 @@ class GameSelect(discord.ui.Select):
         )
 
     async def callback(self, interaction: discord.Interaction):
-        user_id = str(interaction.user.id)
-        user_games[user_id] = self.values
-        await interaction.response.send_message("Jeux enregistrés !", ephemeral=True)
-        channel = interaction.channel
-        async for message in channel.history(limit=10):
-            if (message.author == interaction.client.user and 
-                hasattr(message, 'embeds') and 
-                len(message.embeds) > 0 and
-                "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
-                view = PresenceButtons()
-                await view.update_presence_message(message)
-                break
+        try:
+            user_id = str(interaction.user.id)
+            user_games[user_id] = self.values
+            await interaction.response.send_message("Jeux enregistrés !", ephemeral=True)
+            channel = interaction.channel
+            async for message in channel.history(limit=10):
+                if (message.author == interaction.client.user and 
+                    hasattr(message, 'embeds') and 
+                    message.embeds and
+                    "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
+                    view = PresenceButtons()
+                    await view.update_presence_message(message)
+                    break
+        except Exception as e:
+            print(f"Error in GameSelect callback: {e}")
+            await interaction.response.send_message(f"Erreur d'interaction : {e}", ephemeral=True)
 
 class PresenceSelect(discord.ui.Select):
     def __init__(self):
@@ -246,14 +252,14 @@ class PresenceSelect(discord.ui.Select):
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
                     hasattr(message, 'embeds') and 
-                    len(message.embeds) > 0 and
+                    message.embeds and
                     "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
                     view = PresenceButtons()
                     await view.update_presence_message(message)
                     break
         except Exception as e:
             print(f"Error in PresenceSelect callback: {e}")
-            await interaction.response.defer()
+            await interaction.response.send_message(f"Erreur d'interaction : {e}", ephemeral=True)
 
 class PresenceButtons(discord.ui.View):
     def __init__(self):
@@ -314,10 +320,14 @@ class PresenceButtons(discord.ui.View):
         embed.description = content
         await message.edit(embed=embed, view=self)
 
-@bot.tree.command(name="lrcinfo", description="Affiche les informations sur les commandes du bot")
+@bot.tree.command(
+    name="lrcinfo",
+    description="Affiche les informations sur les commandes du bot",
+    guild=discord.Object(id=GUILD_ID)
+)
 async def lrcinfo(interaction: discord.Interaction):
     info_message = """
-🤖 **Bot LRC - Guide des commandes V1.4.0**
+🤖 **Bot LRC - Guide des commandes V1.4.1**
 
 ━━━━━━━━━ **Commandes** ━━━━━━━━━
 
@@ -357,7 +367,11 @@ async def lrcinfo(interaction: discord.Interaction):
 """
     await interaction.response.send_message(info_message, ephemeral=True)
 
-@bot.tree.command(name="lrcaddbirthday", description="Ajoute ou modifie la date d'anniversaire d'un membre")
+@bot.tree.command(
+    name="lrcaddbirthday",
+    description="Ajoute ou modifie la date d'anniversaire d'un membre",
+    guild=discord.Object(id=GUILD_ID)
+)
 async def lrcaddbirthday(interaction: discord.Interaction, user: discord.Member, date: str):
     try:
         try:
@@ -372,7 +386,11 @@ async def lrcaddbirthday(interaction: discord.Interaction, user: discord.Member,
     except Exception as e:
         await interaction.response.send_message(f"Erreur : {e}", ephemeral=True)
 
-@bot.tree.command(name="lrcbirthdays", description="Affiche les anniversaires à venir")
+@bot.tree.command(
+    name="lrcbirthdays",
+    description="Affiche les anniversaires à venir",
+    guild=discord.Object(id=GUILD_ID)
+)
 async def lrcbirthdays(interaction: discord.Interaction):
     try:
         birthdays = load_birthdays()
@@ -394,7 +412,11 @@ async def lrcbirthdays(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"Erreur : {e}")
 
-@bot.tree.command(name="lrcremovebirthday", description="Supprime l'anniversaire d'un membre")
+@bot.tree.command(
+    name="lrcremovebirthday",
+    description="Supprime l'anniversaire d'un membre",
+    guild=discord.Object(id=GUILD_ID)
+)
 async def lrcremovebirthday(interaction: discord.Interaction, user: discord.Member):
     try:
         birthdays = load_birthdays()
@@ -406,6 +428,21 @@ async def lrcremovebirthday(interaction: discord.Interaction, user: discord.Memb
             await interaction.response.send_message("Aucun anniversaire enregistré pour ce membre.", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"Erreur : {e}", ephemeral=True)
+
+@bot.tree.command(
+    name="lrcreset",
+    description="Réinitialise le message de présence",
+    guild=discord.Object(id=GUILD_ID)
+)
+async def lrcreset(interaction: discord.Interaction):
+    arrival_times.clear()
+    maybe_times.clear()
+    presence_states.clear()
+    user_games.clear()
+    channel = interaction.channel
+    await clear_old_presence_messages(channel)
+    await send_presence_message(channel)
+    await interaction.response.send_message("Message de présence réinitialisé !", ephemeral=True)
 
 @tasks.loop(time=time(hour=21, minute=30))
 async def daily_push():
@@ -465,7 +502,7 @@ async def birthday_notifier():
 
 @bot.command()
 async def sync(ctx):
-    synced = await bot.tree.sync()
+    synced = await bot.tree.sync(guild=discord.Object(id=GUILD_ID))
     await ctx.send(f"Commandes slash synchronisées ({len(synced)})")
 
 if __name__ == "__main__":
