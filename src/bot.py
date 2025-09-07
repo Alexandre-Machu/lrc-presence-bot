@@ -34,7 +34,7 @@ GAMES = [
     {"name": "League Of Legends", "emoji": "<:LoLIcon:1413650879315443814>"},
     {"name": "R.E.P.O", "emoji": "<:Repolicon:1413650886252695763>"},
     {"name": "Monster Hunter", "emoji": "<:MHIcon:1413650881865322546>"},
-    {"name": "Jeux du soir", "emoji": "<:JeuxDuSoir:10cfdf082083ea92>"},
+    {"name": "Jeux du soir", "emoji": "✨"},
     {"name": "Valorant", "emoji": "<:Valolicon:1413650888391659520>"},
     {"name": "VGMQ", "emoji": "<:VGMQLogo:1413650890061250743>"},
     {"name": "Dales & Dawson", "emoji": "<:DDIcon:1413652803351613470>"},
@@ -43,7 +43,7 @@ GAMES = [
     {"name": "DBD", "emoji": "<:DBDIcon:1413652799610163220>"},
     {"name": "OW", "emoji": "<:OWIcon:1413652805755076809>"},
     {"name": "Among Us", "emoji": "<:AmongUsIcon:1413653484963627170>"},
-    {"name": "Jeux de golf", "emoji": "<:JeuxDeGolf:205cf59b6e809ba7>"},
+    {"name": "Jeux de golf", "emoji": "⛳"},
 ]
 
 BIRTHDAYS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "birthdays.json")
