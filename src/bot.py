@@ -247,11 +247,9 @@ class PresenceButtons(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
         self.add_item(PresenceSelect())
-        # Menus pour l'utilisateur courant (affichés à tous, mais chaque user peut interagir)
         self.add_item(ArrivalTimeSelect(None, False))
         self.add_item(GameSelect(None))
-        self.add_item(ResendArrivalTimeButton(None, False))
-        self.add_item(ResendGameButton(None))
+        # Les boutons "Renvoyer le menu heure" et "Renvoyer le menu jeux" sont supprimés
 
     async def update_presence_message(self, message):
         today = datetime.now(TIMEZONE).strftime("%d/%m/%Y")
@@ -305,46 +303,6 @@ class PresenceButtons(discord.ui.View):
         embed = message.embeds[0]
         embed.description = content
         await message.edit(embed=embed, view=self)
-
-class ResendArrivalTimeView(View):
-    def __init__(self, user_id, is_maybe):
-        super().__init__(timeout=None)
-        self.add_item(ArrivalTimeSelect(user_id, is_maybe))
-        self.add_item(ResendArrivalTimeButton(user_id, is_maybe))
-
-class ResendGameView(View):
-    def __init__(self, user_id):
-        super().__init__(timeout=None)
-        self.add_item(GameSelect(user_id))
-        self.add_item(ResendGameButton(user_id))
-
-# Modifie les boutons pour utiliser l'user courant
-class ResendArrivalTimeButton(discord.ui.Button):
-    def __init__(self, user_id, is_maybe):
-        super().__init__(label="Renvoyer le menu heure", style=discord.ButtonStyle.secondary)
-        self.user_id = user_id
-        self.is_maybe = is_maybe
-
-    async def callback(self, interaction: discord.Interaction):
-        view = PresenceButtons()
-        await interaction.response.send_message(
-            "Sélectionnez à nouveau votre heure d'arrivée.",
-            view=view,
-            ephemeral=True
-        )
-
-class ResendGameButton(discord.ui.Button):
-    def __init__(self, user_id):
-        super().__init__(label="Renvoyer le menu jeux", style=discord.ButtonStyle.secondary)
-        self.user_id = user_id
-
-    async def callback(self, interaction: discord.Interaction):
-        view = PresenceButtons()
-        await interaction.response.send_message(
-            "Sélectionnez à nouveau vos jeux dispo.",
-            view=view,
-            ephemeral=True
-        )
 
 @bot.tree.command(
     name="lrcinfo",
