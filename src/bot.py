@@ -273,20 +273,6 @@ class PresenceButtons(discord.ui.View):
         absents = [k for k, v in presence_states.items() if v == "Absent"]
         maybe = [k for k, v in presence_states.items() if v == "Ne sait pas"]
 
-        # Compteur de jeux
-        game_counts = {game["name"]: 0 for game in GAMES}
-        for user_id in presents + maybe:
-            for jeu in user_games.get(user_id, []):
-                if jeu in game_counts:
-                    game_counts[jeu] += 1
-
-        content += "**Jeux ce soir :**\n"
-        for game in GAMES:
-            count = game_counts[game["name"]]
-            if count > 0:
-                content += f"{game['emoji']} {game['name']} : {count}\n"
-        content += "\n"
-
         if presents:
             content += "**Présents :**\n"
             for user_id in presents:
@@ -315,6 +301,19 @@ class PresenceButtons(discord.ui.View):
                 user = message.guild.get_member(int(user_id))
                 if user:
                     content += f"- {user.mention}\n"
+
+        # Compteur de jeux EN DESSOUS
+        game_counts = {game["name"]: 0 for game in GAMES}
+        for user_id in presents + maybe:
+            for jeu in user_games.get(user_id, []):
+                if jeu in game_counts:
+                    game_counts[jeu] += 1
+
+        content += "\n**Jeux ce soir :**\n"
+        for game in GAMES:
+            count = game_counts[game["name"]]
+            if count > 0:
+                content += f"{game['emoji']} {game['name']} : {count}\n"
 
         embed = message.embeds[0]
         embed.description = content
