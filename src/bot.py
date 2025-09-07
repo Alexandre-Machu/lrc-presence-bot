@@ -139,7 +139,16 @@ class ArrivalTimeSelect(Select):
             else:
                 arrival_times[user_id] = time
                 maybe_times.pop(user_id, None)
-            # Ne rien envoyer ici, juste mettre à jour le message principal
+            # Après le choix de l'heure, affiche le menu de jeux
+            game_view = View()
+            game_select = GameSelect(interaction.user.id)
+            game_view.add_item(game_select)
+            await interaction.response.send_message(
+                "Sélectionne tes jeux dispo.",
+                view=game_view,
+                ephemeral=True
+            )
+            # Met à jour le message principal
             channel = interaction.channel
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
@@ -170,7 +179,7 @@ class GameSelect(discord.ui.Select):
         try:
             user_id = str(interaction.user.id)
             user_games[user_id] = self.values
-            # Ne rien envoyer ici, juste mettre à jour le message principal
+            # Met à jour le message principal, ne rien envoyer ici
             channel = interaction.channel
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
@@ -182,7 +191,6 @@ class GameSelect(discord.ui.Select):
                     break
         except Exception as e:
             print(f"Error in GameSelect callback: {e}")
-            await interaction.response.send_message(f"Erreur d'interaction : {e}", ephemeral=True)
 
 class PresenceSelect(discord.ui.Select):
     def __init__(self):
