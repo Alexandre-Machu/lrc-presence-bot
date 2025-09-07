@@ -139,7 +139,7 @@ class ArrivalTimeSelect(Select):
             else:
                 arrival_times[user_id] = time
                 maybe_times.pop(user_id, None)
-            await interaction.response.defer()
+            # Ne rien envoyer ici, juste mettre à jour le message principal
             channel = interaction.channel
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
@@ -170,7 +170,7 @@ class GameSelect(discord.ui.Select):
         try:
             user_id = str(interaction.user.id)
             user_games[user_id] = self.values
-            await interaction.response.send_message("Jeux enregistrés !", ephemeral=True)
+            # Ne rien envoyer ici, juste mettre à jour le message principal
             channel = interaction.channel
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
