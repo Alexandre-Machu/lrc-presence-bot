@@ -69,7 +69,7 @@ async def on_ready():
 
     activity = discord.Activity(
         type=discord.ActivityType.playing,
-        name="/lrcinfo | V1.4.2"
+        name="/lrcinfo | V1.4.3"  # <-- Upgrade version ici
     )
     await bot.change_presence(activity=activity)
     daily_push.start()
@@ -139,14 +139,7 @@ class ArrivalTimeSelect(Select):
             else:
                 arrival_times[user_id] = time
                 maybe_times.pop(user_id, None)
-            # Envoie le menu de jeux en réponse
-            game_view = ResendGameView(interaction.user.id)
-            await interaction.response.send_message(
-                "Sélectionne tes jeux dispo.",
-                view=game_view,
-                ephemeral=True
-            )
-            # Met à jour le message principal (mais via followup, pour ne pas double-répondre)
+            # Met à jour le message principal
             channel = interaction.channel
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
@@ -154,6 +147,7 @@ class ArrivalTimeSelect(Select):
                     message.embeds and
                     "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
                     view = PresenceButtons()
+                    await interaction.response.defer()
                     await view.update_presence_message(message)
                     break
         except Exception as e:
@@ -177,7 +171,7 @@ class GameSelect(discord.ui.Select):
         try:
             user_id = str(interaction.user.id)
             user_games[user_id] = self.values
-            # Met à jour le message principal, ne rien envoyer ici
+            # Met à jour le message principal
             channel = interaction.channel
             async for message in channel.history(limit=10):
                 if (message.author == interaction.client.user and 
@@ -185,6 +179,7 @@ class GameSelect(discord.ui.Select):
                     message.embeds and
                     "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
                     view = PresenceButtons()
+                    await interaction.response.defer()
                     await view.update_presence_message(message)
                     break
         except Exception as e:
@@ -225,41 +220,14 @@ class PresenceSelect(discord.ui.Select):
             if choice == "present":
                 presence_states[user_id] = "Présent"
                 maybe_times.pop(user_id, None)
-                # Envoie le menu d'heure
-                time_view = ResendArrivalTimeView(interaction.user.id, is_maybe=False)
-                await interaction.response.send_message(
-                    "À quelle heure pensez-vous arriver ?",
-                    view=time_view,
-                    ephemeral=True
-                )
-                # Envoie le menu de jeux dans un second message
-                game_view = ResendGameView(interaction.user.id)
-                await interaction.followup.send(
-                    "Sélectionne tes jeux dispo.",
-                    view=game_view,
-                    ephemeral=True
-                )
             elif choice == "absent":
                 presence_states[user_id] = "Absent"
                 arrival_times.pop(user_id, None)
                 maybe_times.pop(user_id, None)
                 user_games.pop(user_id, None)
-                await interaction.response.defer()
             else:
                 presence_states[user_id] = "Ne sait pas"
                 arrival_times.pop(user_id, None)
-                time_view = ResendArrivalTimeView(interaction.user.id, is_maybe=True)
-                await interaction.response.send_message(
-                    "Si vous venez, ce ne sera pas avant quelle heure ?",
-                    view=time_view,
-                    ephemeral=True
-                )
-                game_view = ResendGameView(interaction.user.id)
-                await interaction.followup.send(
-                    "Sélectionne tes jeux dispo.",
-                    view=game_view,
-                    ephemeral=True
-                )
             # Met à jour le message principal
             channel = interaction.channel
             async for message in channel.history(limit=10):
@@ -268,6 +236,7 @@ class PresenceSelect(discord.ui.Select):
                     message.embeds and
                     "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
                     view = PresenceButtons()
+                    await interaction.response.defer()
                     await view.update_presence_message(message)
                     break
         except Exception as e:
@@ -384,7 +353,7 @@ class ResendGameButton(discord.ui.Button):
 )
 async def lrcinfo(interaction: discord.Interaction):
     info_message = """
-🤖 **Bot LRC - Guide des commandes V1.4.1**
+🤖 **Bot LRC - Guide des commandes V1.4.3**
 
 ━━━━━━━━━ **Commandes** ━━━━━━━━━
 
