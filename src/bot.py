@@ -37,7 +37,7 @@ GAMES = [
     {"name": "Jeux du soir", "emoji": "✨"},
     {"name": "Valorant", "emoji": "<:Valolicon:1413650888391659520>"},
     {"name": "VGMQ", "emoji": "<:VGMQLogo:1413650890061250743>"},
-    {"name": "Dales & Dawson", "emoji": "<:DDIcon:1413652803351613470>"},
+    {"name": "D&D", "emoji": "<:DDIcon:1413652803351613470>"},
     {"name": "AMQ", "emoji": "<:AMQIcon:1413650873267130562>"},
     {"name": "Minecraft", "emoji": "<:MinecraftIcon:1413650884184899594>"},
     {"name": "DBD", "emoji": "<:DBDIcon:1413652799610163220>"},
@@ -228,12 +228,12 @@ class PresenceSelect(discord.ui.Select):
     
     async def callback(self, interaction: discord.Interaction):
         try:
+            await interaction.response.defer()  # Défère tout de suite !
             choice = self.values[0]
             user_id = str(interaction.user.id)
             if choice == "present":
                 presence_states[user_id] = "Présent"
                 maybe_times.pop(user_id, None)
-                # Réattribue les rôles jeux si besoin
                 member = interaction.guild.get_member(interaction.user.id)
                 removed_roles = load_removed_roles()
                 if member and user_id in removed_roles:
@@ -252,7 +252,6 @@ class PresenceSelect(discord.ui.Select):
                 if member:
                     roles_to_remove = [role for role in member.roles if role.name in GAME_ROLE_NAMES]
                     if roles_to_remove:
-                        # Sauvegarde les rôles retirés
                         removed_roles = load_removed_roles()
                         removed_roles[user_id] = [role.id for role in roles_to_remove]
                         save_removed_roles(removed_roles)
@@ -268,12 +267,11 @@ class PresenceSelect(discord.ui.Select):
                     message.embeds and
                     "Qui sera présent aujourd'hui ?" in message.embeds[0].title):
                     view = PresenceButtons()
-                    await interaction.response.defer()
                     await view.update_presence_message(message)
                     break
         except Exception as e:
             print(f"Error in PresenceSelect callback: {e}")
-            await interaction.response.send_message(f"Erreur d'interaction : {e}", ephemeral=True)
+            # Optionnel : tu peux envoyer une erreur ici si tu veux
 
 class PresenceButtons(discord.ui.View):
     def __init__(self):
