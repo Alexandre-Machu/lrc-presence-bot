@@ -46,6 +46,8 @@ GAMES = [
     {"name": "Jeux de golf", "emoji": "⛳"},
 ]
 
+GAME_ROLE_NAMES = [game["name"] for game in GAMES]
+
 BIRTHDAYS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "birthdays.json")
 
 def load_birthdays():
@@ -400,7 +402,7 @@ async def lrcbirthdays(interaction: discord.Interaction):
             msg = "Aucun anniversaire à venir dans les 30 jours."
         await interaction.response.send_message(msg)
     except Exception as e:
-        await interaction.response.send_message(f"Erreur : {e}")
+        await interaction.response.send_message(f"Erreur : {e}", ephemeral=True)
 
 @bot.tree.command(
     name="lrcremovebirthday",
