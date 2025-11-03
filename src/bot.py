@@ -49,7 +49,6 @@ GAMES = [
 GAME_ROLE_NAMES = [game["name"] for game in GAMES]
 
 BIRTHDAYS_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "birthdays.json")
-REMOVED_ROLES_FILE = os.path.join(os.path.dirname(os.path.dirname(__file__)), "removed_roles.json")
 
 def load_birthdays():
     if not os.path.exists(BIRTHDAYS_FILE):
@@ -59,16 +58,6 @@ def load_birthdays():
 
 def save_birthdays(data):
     with open(BIRTHDAYS_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def load_removed_roles():
-    if not os.path.exists(REMOVED_ROLES_FILE):
-        return {}
-    with open(REMOVED_ROLES_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-def save_removed_roles(data):
-    with open(REMOVED_ROLES_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 @bot.event
@@ -234,28 +223,12 @@ class PresenceSelect(discord.ui.Select):
             if choice == "present":
                 presence_states[user_id] = "Présent"
                 maybe_times.pop(user_id, None)
-                member = interaction.guild.get_member(interaction.user.id)
-                removed_roles = load_removed_roles()
-                if member and user_id in removed_roles:
-                    role_ids = removed_roles[user_id]
-                    roles_to_add = [role for role in interaction.guild.roles if role.id in role_ids]
-                    if roles_to_add:
-                        await member.add_roles(*roles_to_add, reason="Présent ce soir (LRC Bot)")
-                    del removed_roles[user_id]
-                    save_removed_roles(removed_roles)
             elif choice == "absent":
                 presence_states[user_id] = "Absent"
                 arrival_times.pop(user_id, None)
                 maybe_times.pop(user_id, None)
                 user_games.pop(user_id, None)
-                member = interaction.guild.get_member(interaction.user.id)
-                if member:
-                    roles_to_remove = [role for role in member.roles if role.name in GAME_ROLE_NAMES]
-                    if roles_to_remove:
-                        removed_roles = load_removed_roles()
-                        removed_roles[user_id] = [role.id for role in roles_to_remove]
-                        save_removed_roles(removed_roles)
-                        await member.remove_roles(*roles_to_remove, reason="Absent ce soir (LRC Bot)")
+                # Ne pas toucher aux rôles du membre (fonctionnalité supprimée)
             else:
                 presence_states[user_id] = "Ne sait pas"
                 arrival_times.pop(user_id, None)
@@ -456,15 +429,7 @@ async def lrcreset(interaction: discord.Interaction):
     channel = interaction.channel
     await clear_old_presence_messages(channel)
     await send_presence_message(channel)
-    # Réattribue les rôles jeux à tous ceux qui en ont dans removed_roles.json
-    removed_roles = load_removed_roles()
-    for user_id, role_ids in removed_roles.items():
-        member = channel.guild.get_member(int(user_id))
-        if member:
-            roles_to_add = [role for role in channel.guild.roles if role.id in role_ids]
-            if roles_to_add:
-                await member.add_roles(*roles_to_add, reason="Réinitialisation présence (LRC Bot)")
-    save_removed_roles({})
+    # Ne réattribue plus de rôles lors de la réinitialisation (fonctionnalité supprimée)
     await interaction.response.send_message("Message de présence réinitialisé !", ephemeral=True)
 
 @tasks.loop(time=time(hour=21, minute=30))
