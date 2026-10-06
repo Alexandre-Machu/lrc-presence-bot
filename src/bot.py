@@ -32,6 +32,10 @@ class LRCBot(commands.Bot):
         try:
             synced = await self.tree.sync(guild=discord.Object(id=GUILD_ID))
             log.info("Commandes slash synchronisées (%d)", len(synced))
+            # Toutes nos commandes sont propres au serveur : l'arbre global est vide, donc cette
+            # synchro supprime d'anciennes commandes globales fantômes (doublons dans le menu « / »)
+            removed = await self.tree.sync()
+            log.info("Commandes globales restantes après nettoyage : %d", len(removed))
         except discord.HTTPException as e:
             log.error("Erreur sync commandes : %s", e)
 
@@ -49,6 +53,8 @@ bot = LRCBot()
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     if isinstance(error, app_commands.MissingPermissions):
         msg = "Cette commande est réservée aux administrateurs."
+    elif isinstance(error, app_commands.CommandNotFound):
+        msg = "Cette commande n'existe plus. Recharge Discord (Ctrl+R) pour mettre à jour la liste."
     else:
         log.exception("Erreur de commande", exc_info=error)
         msg = "Une erreur est survenue."

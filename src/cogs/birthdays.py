@@ -32,6 +32,33 @@ def can_manage(interaction: discord.Interaction, target: discord.Member):
     return target.id == interaction.user.id or interaction.user.guild_permissions.administrator
 
 
+def save_birthday(user_id, date_text):
+    """Valide et enregistre. Retourne la date normalisée ; ValueError si invalide."""
+    day, month = parse_birthday(date_text)
+    normalized = format_birthday(day, month)
+    birthdays = load_birthdays()
+    birthdays[str(user_id)] = normalized
+    save_birthdays(birthdays)
+    return normalized
+
+
+class BirthdayModal(discord.ui.Modal, title="Ton anniversaire"):
+    date = discord.ui.TextInput(label="Date (jour/mois, ex : 25/12)", placeholder="25/12", min_length=3, max_length=5)
+
+    def __init__(self, target: discord.Member):
+        super().__init__()
+        self.target = target
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            normalized = save_birthday(self.target.id, self.date.value)
+        except ValueError:
+            await interaction.response.send_message("Date invalide. Écris par exemple `25/12`.", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            f"Anniversaire de {self.target.mention} enregistré pour le {normalized} 🎂", ephemeral=True)
+
+
 class Birthdays(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -63,27 +90,26 @@ class Birthdays(commands.Cog):
         return sent
 
     @app_commands.command(
-        name="lrcaddbirthday",
-        description="Enregistre ton anniversaire (ou celui d'un membre si tu es admin)",
+        name="lrcbirthday",
+        description="Enregistre ton anniversaire (un formulaire s'ouvre si tu ne donnes pas la date)",
     )
-    @app_commands.describe(date="Ta date d'anniversaire au format JJ/MM (ex : 25/12)", user="Membre (admin uniquement)")
-    async def lrcaddbirthday(self, interaction: discord.Interaction, date: str, user: Optional[discord.Member] = None):
+    @app_commands.describe(date="(Optionnel) JJ/MM, ex : 25/12", user="Membre (admin uniquement)")
+    async def lrcbirthday(self, interaction: discord.Interaction, date: Optional[str] = None, user: Optional[discord.Member] = None):
         target = user or interaction.user
         if not can_manage(interaction, target):
             await interaction.response.send_message(
                 "Seuls les administrateurs peuvent modifier l'anniversaire d'un autre membre.", ephemeral=True)
             return
+        if date is None:
+            await interaction.response.send_modal(BirthdayModal(target))
+            return
         try:
-            day, month = parse_birthday(date)
+            normalized = save_birthday(target.id, date)
         except ValueError:
             await interaction.response.send_message("Format de date invalide. Utilise JJ/MM (ex : 25/12).", ephemeral=True)
             return
-        normalized = format_birthday(day, month)
-        birthdays = load_birthdays()
-        birthdays[str(target.id)] = normalized
-        save_birthdays(birthdays)
         await interaction.response.send_message(
-            f"Anniversaire de {target.mention} enregistré pour le {normalized} !", ephemeral=True)
+            f"Anniversaire de {target.mention} enregistré pour le {normalized} 🎂", ephemeral=True)
 
     @app_commands.command(name="lrcremovebirthday", description="Supprime ton anniversaire (ou celui d'un membre si tu es admin)")
     @app_commands.describe(user="Membre (admin uniquement)")

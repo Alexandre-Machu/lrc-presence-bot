@@ -12,6 +12,7 @@ from config.settings import (
 )
 from utils.absences import absent_on, load_absences, purge_past, save_absences
 from utils.storage import PresenceState
+from utils.times import parse_arrival_time
 
 log = logging.getLogger(__name__)
 
@@ -27,6 +28,13 @@ def fmt_time(value):
     if value == "later":
         return "plus tard"
     return value.replace(":", "h")
+
+
+# 18h00-20h00 toutes les 30 min, puis toutes les 15 min jusqu'à 23h30
+ARRIVAL_SLOTS = (
+    ["18:00", "18:30", "19:00", "19:30", "20:00"]
+    + [f"{m // 60:02d}:{m % 60:02d}" for m in range(20 * 60 + 15, 23 * 60 + 31, 15)]
+)
 
 
 # ---------------------------------------------------------------- Menus
@@ -67,27 +75,13 @@ class ArrivalTimeSelect(discord.ui.Select):
         super().__init__(
             placeholder="Heure d'arrivée (ou « pas avant » si pas sûr)",
             custom_id="arrival_time_select",
-            options=[
-                discord.SelectOption(label="20h30", value="20:30"),
-                discord.SelectOption(label="20h45", value="20:45"),
-                discord.SelectOption(label="21h00", value="21:00"),
-                discord.SelectOption(label="21h15", value="21:15"),
-                discord.SelectOption(label="21h30", value="21:30"),
-                discord.SelectOption(label="Plus tard", value="later"),
-            ],
+            options=[discord.SelectOption(label=fmt_time(t), value=t) for t in ARRIVAL_SLOTS]
+            + [discord.SelectOption(label="Plus tard", value="later")],
         )
 
     async def callback(self, interaction: discord.Interaction):
         cog = self.view.cog
-        state = cog.state
-        state.ensure_today()
-        uid = str(interaction.user.id)
-        known = uid in state.presence
-        if state.presence.get(uid) == ST_MAYBE:
-            state.maybe[uid] = self.values[0]
-        else:
-            state.arrival[uid] = self.values[0]
-        state.save()
+        known = cog.set_arrival(interaction.user.id, self.values[0])
         await cog.refresh(interaction)
         if not known:
             await cog.hint_presence_needed(interaction)
@@ -119,6 +113,40 @@ class GameSelect(discord.ui.Select):
             await cog.hint_presence_needed(interaction)
 
 
+class ExactTimeModal(discord.ui.Modal, title="Heure d'arrivée exacte"):
+    heure = discord.ui.TextInput(
+        label="Ton heure (ex : 21:40 ou 21h40)",
+        placeholder="21:40", min_length=1, max_length=5,
+    )
+
+    def __init__(self, cog):
+        super().__init__()
+        self.cog = cog
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            value = parse_arrival_time(self.heure.value)
+        except ValueError:
+            await interaction.response.send_message(
+                "Heure invalide. Écris par exemple `21:40` ou `21h40`.", ephemeral=True)
+            return
+        known = self.cog.set_arrival(interaction.user.id, value)
+        await self.cog.refresh(interaction)
+        if not known:
+            await self.cog.hint_presence_needed(interaction)
+
+
+class ExactTimeButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Heure exacte", emoji="🕒", style=discord.ButtonStyle.secondary,
+            custom_id="exact_time", row=3,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(ExactTimeModal(self.view.cog))
+
+
 class AbsencePanelButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
@@ -139,6 +167,7 @@ class PresenceView(discord.ui.View):
         self.add_item(PresenceSelect())
         self.add_item(ArrivalTimeSelect())
         self.add_item(GameSelect())
+        self.add_item(ExactTimeButton())
         self.add_item(AbsencePanelButton())
 
 
@@ -275,6 +304,18 @@ class Presence(commands.Cog):
         self.state.arrival.pop(uid, None)
         self.state.maybe.pop(uid, None)
         self.state.save()
+
+    def set_arrival(self, uid, value):
+        """Enregistre l'heure (« pas avant » si le membre n'est pas sûr). Retourne si sa présence était déjà connue."""
+        self.state.ensure_today()
+        uid = str(uid)
+        known = uid in self.state.presence
+        if self.state.presence.get(uid) == ST_MAYBE:
+            self.state.maybe[uid] = value
+        else:
+            self.state.arrival[uid] = value
+        self.state.save()
+        return known
 
     def set_absent_today(self, uid, absent: bool):
         """Absence ajoutée/retirée pour aujourd'hui depuis le calendrier."""
