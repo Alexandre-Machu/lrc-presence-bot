@@ -1,4 +1,4 @@
-# LRC Presence Bot V1.6.0
+# LRC Presence Bot V1.7.0
 
 Bot Discord pour la gestion des présences du LRC.
 
@@ -14,7 +14,8 @@ Bot Discord pour la gestion des présences du LRC.
 
 Absences (calendrier) :
 
-- `/lrcabsence debut [fin]` : planifie une absence à l'avance (`JJ/MM` ou `JJ/MM/AAAA`). Le jour J, le bot te marque ❌ automatiquement
+- Bouton **📅 Mes absences** sous le message du jour, ou `/lrcabsence` : calendrier cliquable (un clic sur un jour = absent, flèches pour changer de semaine)
+- `/lrcabsence debut [fin]` : ou planifie une absence à l'avance (`JJ/MM` ou `JJ/MM/AAAA`). Le jour J, le bot te marque ❌ automatiquement
 - `/lrcabsences [tous]` : liste les absences planifiées (les tiennes, ou celles de tout le monde)
 - `/lrcremoveabsence` : annule une de tes absences
 

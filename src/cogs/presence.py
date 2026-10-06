@@ -119,6 +119,17 @@ class GameSelect(discord.ui.Select):
             await cog.hint_presence_needed(interaction)
 
 
+class AbsencePanelButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(
+            label="Mes absences", emoji="📅", style=discord.ButtonStyle.secondary,
+            custom_id="absence_panel", row=3,
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.client.get_cog("Absences").open_panel(interaction)
+
+
 class PresenceView(discord.ui.View):
     """Vue persistante : custom_id fixes, ré-enregistrée au chargement du cog."""
 
@@ -128,6 +139,7 @@ class PresenceView(discord.ui.View):
         self.add_item(PresenceSelect())
         self.add_item(ArrivalTimeSelect())
         self.add_item(GameSelect())
+        self.add_item(AbsencePanelButton())
 
 
 # ---------------------------------------------------------------- Cog
@@ -263,6 +275,15 @@ class Presence(commands.Cog):
         self.state.arrival.pop(uid, None)
         self.state.maybe.pop(uid, None)
         self.state.save()
+
+    def set_absent_today(self, uid, absent: bool):
+        """Absence ajoutée/retirée pour aujourd'hui depuis le calendrier."""
+        if absent:
+            self.mark_absent_today(uid)
+        elif self.state.presence.get(str(uid)) == ST_ABSENT:
+            self.state.ensure_today()
+            self.state.presence.pop(str(uid), None)
+            self.state.save()
 
     # ---- commandes
 

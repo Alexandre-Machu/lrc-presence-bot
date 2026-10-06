@@ -5,7 +5,7 @@ from discord.ext import commands
 
 from config.settings import GUILD_ID
 
-VERSION = "V1.6.0"
+VERSION = "V1.7.0"
 
 INFO_MESSAGE = f"""
 🤖 **Bot LRC - Guide des commandes {VERSION}**
@@ -13,7 +13,8 @@ INFO_MESSAGE = f"""
 ━━━━━━━━━ **Commandes** ━━━━━━━━━
 
 **Absences**
-• `/lrcabsence debut [fin]` - Planifie une absence (JJ/MM ou JJ/MM/AAAA)
+• 📅 Bouton **Mes absences** (sous le message du jour) ou `/lrcabsence` - Calendrier cliquable
+• `/lrcabsence debut [fin]` - Ou une période en JJ/MM ou JJ/MM/AAAA
 • `/lrcabsences [tous]` - Liste des absences planifiées
 • `/lrcremoveabsence` - Annule une de tes absences
 

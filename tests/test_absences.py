@@ -58,3 +58,18 @@ def test_purge_and_remove():
     assert remove_absence(data, 1, "2026-10-10") is True
     assert data == {}
     assert remove_absence(data, 1, "2026-10-10") is False
+
+
+def test_toggle_days_merges_and_splits():
+    from utils.absences import toggle_days
+    data = {}
+    assert toggle_days(data, 1, [date(2026, 10, 12)]) is True
+    assert toggle_days(data, 1, [date(2026, 10, 13)]) is True
+    assert data["1"] == [{"start": "2026-10-12", "end": "2026-10-13"}]
+    assert toggle_days(data, 1, [date(2026, 10, 12)]) is False   # retire un jour
+    assert data["1"] == [{"start": "2026-10-13", "end": "2026-10-13"}]
+    week = [date(2026, 10, 12 + i) for i in range(7)]
+    assert toggle_days(data, 1, week) is True                    # tout ajouter
+    assert data["1"] == [{"start": "2026-10-12", "end": "2026-10-18"}]
+    assert toggle_days(data, 1, week) is False                   # tout retirer
+    assert data == {}
