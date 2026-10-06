@@ -13,7 +13,10 @@ from config.settings import (
     CHANNEL_ID, DISCORD_TOKEN, GOOGLE_SPREADSHEET_ID, GUILD_ID, TIMEZONE,
 )
 from utils.sheets_handler import SheetsHandler
-from utils.storage import PresenceState, load_birthdays, save_birthdays
+from utils.storage import (
+    PresenceState, get_last_birthday_notice, load_birthdays, save_birthdays,
+    set_last_birthday_notice,
+)
 
 VERSION = "V1.5.0"
 PRESENCE_TITLE = "Qui sera présent aujourd'hui ?"
@@ -143,7 +146,6 @@ class PresenceSelect(discord.ui.Select):
             state.presence[uid] = ST_ABSENT
             state.arrival.pop(uid, None)
             state.maybe.pop(uid, None)
-            state.games.pop(uid, None)
         else:
             state.presence[uid] = ST_MAYBE
             state.arrival.pop(uid, None)
@@ -268,6 +270,38 @@ def days_until(date_str, today: date):
     return (nxt - today).days
 
 
+async def find_member(guild: discord.Guild, user_id: int):
+    """Membre du serveur, même s'il n'est pas dans le cache ; None s'il est parti."""
+    member = guild.get_member(user_id)
+    if member:
+        return member
+    try:
+        return await guild.fetch_member(user_id)
+    except discord.NotFound:
+        return None
+
+
+async def announce_birthdays(channel):
+    """Souhaite les anniversaires du jour. Retourne le nombre de messages envoyés."""
+    today = datetime.now(TIMEZONE).date()
+    sent = 0
+    for user_id, date_str in load_birthdays().items():
+        try:
+            day, month = parse_birthday(date_str)
+        except ValueError:
+            log.warning("Date d'anniversaire invalide ignorée : %s=%s", user_id, date_str)
+            continue
+        if birthday_on(today.year, day, month) != today:
+            continue
+        member = await find_member(channel.guild, int(user_id))
+        if member and not member.bot:
+            await channel.send(f"🎉 **Joyeux anniversaire {member.mention} !** 🎂")
+            sent += 1
+    set_last_birthday_notice(today.isoformat())
+    log.info("Anniversaires du jour : %d message(s)", sent)
+    return sent
+
+
 # ---------------------------------------------------------------- Permissions
 
 admin_only = app_commands.default_permissions(administrator=True)
@@ -345,6 +379,7 @@ async def lrcaddbirthday(interaction: discord.Interaction, user: discord.Member,
 
 @bot.tree.command(name="lrcbirthdays", description="Affiche les anniversaires à venir", guild=GUILD)
 async def lrcbirthdays(interaction: discord.Interaction):
+    await interaction.response.defer()
     today = datetime.now(TIMEZONE).date()
     upcoming = []
     for user_id, date_str in load_birthdays().items():
@@ -352,13 +387,17 @@ async def lrcbirthdays(interaction: discord.Interaction):
             delta = days_until(date_str, today)
         except ValueError:
             continue
-        if delta <= 30 and interaction.guild.get_member(int(user_id)):
-            upcoming.append((delta, f"- <@{user_id}> : {date_str}"))
+        if delta > 30:
+            continue
+        member = await find_member(interaction.guild, int(user_id))
+        if member:
+            when = "aujourd'hui 🎂" if delta == 0 else f"dans {delta} j"
+            upcoming.append((delta, f"- {member.mention} : {date_str} ({when})"))
     if upcoming:
         msg = "**Anniversaires à venir (30 jours) :**\n" + "\n".join(line for _, line in sorted(upcoming))
     else:
         msg = "Aucun anniversaire à venir dans les 30 jours."
-    await interaction.response.send_message(msg)
+    await interaction.followup.send(msg)
 
 
 @bot.tree.command(name="lrcremovebirthday", description="Supprime l'anniversaire d'un membre", guild=GUILD)
@@ -444,22 +483,20 @@ async def daily_presence_message_error(error):
 async def birthday_notifier():
     channel = bot.get_channel(CHANNEL_ID)
     if not channel:
+        log.error("Canal introuvable pour les anniversaires")
         return
-    today = datetime.now(TIMEZONE).date()
-    for user_id, date_str in load_birthdays().items():
-        try:
-            day, month = parse_birthday(date_str)
-        except ValueError:
-            continue
-        if birthday_on(today.year, day, month) == today:
-            member = channel.guild.get_member(int(user_id))
-            if member:
-                await channel.send(f"🎉 **Joyeux anniversaire {member.mention} !** 🎂")
+    await announce_birthdays(channel)
 
 
 @birthday_notifier.before_loop
 async def before_birthday_notifier():
     await bot.wait_until_ready()
+    # Rattrapage : bot indisponible à 8h05 (redémarrage, panne)
+    now = datetime.now(TIMEZONE)
+    if (now.hour, now.minute) >= (8, 5) and get_last_birthday_notice() != now.date().isoformat():
+        channel = bot.get_channel(CHANNEL_ID)
+        if channel:
+            await announce_birthdays(channel)
 
 
 @birthday_notifier.error

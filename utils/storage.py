@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 
 STATE_FILE = os.path.join(DATA_DIR, "state.json")
 BIRTHDAYS_FILE = os.path.join(DATA_DIR, "birthdays.json")
+META_FILE = os.path.join(DATA_DIR, "meta.json")
 LEGACY_BIRTHDAYS_FILE = os.path.join(BASE_DIR, "birthdays.json")
 
 
@@ -94,3 +95,14 @@ def load_birthdays():
 
 def save_birthdays(data):
     _write_json(BIRTHDAYS_FILE, data)
+
+
+def get_last_birthday_notice():
+    """Date ISO du dernier envoi des vœux d'anniversaire."""
+    return _read_json(META_FILE, {}).get("last_birthday_notice")
+
+
+def set_last_birthday_notice(iso_date):
+    meta = _read_json(META_FILE, {})
+    meta["last_birthday_notice"] = iso_date
+    _write_json(META_FILE, meta)
