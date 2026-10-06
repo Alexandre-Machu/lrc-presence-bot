@@ -1,4 +1,4 @@
-# LRC Presence Bot V1.5.0
+# LRC Presence Bot V1.6.0
 
 Bot Discord pour la gestion des présences du LRC.
 
@@ -12,20 +12,25 @@ Bot Discord pour la gestion des présences du LRC.
 
 ## Commandes
 
-- `/lrcbirthdays` : Affiche les anniversaires des 30 prochains jours
-- `/lrcinfo` : Affiche le guide des commandes
+Absences (calendrier) :
 
-Réservées aux administrateurs :
+- `/lrcabsence debut [fin]` : planifie une absence à l'avance (`JJ/MM` ou `JJ/MM/AAAA`). Le jour J, le bot te marque ❌ automatiquement
+- `/lrcabsences [tous]` : liste les absences planifiées (les tiennes, ou celles de tout le monde)
+- `/lrcremoveabsence` : annule une de tes absences
 
-- `/lrcreset` : Réinitialise et renvoie le message de présence
-- `/lrcaddbirthday @user JJ/MM` : Ajoute ou modifie l'anniversaire d'un membre
-- `/lrcremovebirthday @user` : Supprime l'anniversaire d'un membre
+Anniversaires :
+
+- `/lrcaddbirthday JJ/MM` : enregistre **ton** anniversaire
+- `/lrcremovebirthday` : supprime ton anniversaire
+- `/lrcbirthdays` : anniversaires des 30 prochains jours
+
+Administrateurs : `/lrcreset` (nouveau message de présence), et `/lrcaddbirthday`/`/lrcremovebirthday` avec `user:` pour un autre membre.
 
 ## Automatisation (heure de Paris)
 
 - 8h00 : nouveau message de présence (état remis à zéro)
 - 8h05 : notification des anniversaires
-- 23h30 : push des présences vers Google Sheets
+- 23h30 : push des présences vers Google Sheets (uniquement si `config/google_credentials.json` existe)
 
 L'état du jour est sauvegardé dans `data/state.json` : un redémarrage du bot ne
 perd ni les réponses ni le fonctionnement des menus.
@@ -48,6 +53,16 @@ GUILD_ID=your_guild_id                       # optionnel
 ```
 
 Le compte de service Google va dans `config/google_credentials.json` (non versionné).
+
+## Structure
+
+```
+src/bot.py            point d'entrée, charge les cogs
+src/cogs/             presence, birthdays, absences, info
+utils/                logique pure (dates, stockage JSON, Sheets)
+config/games.json     liste des jeux du menu (nom + emoji, 25 max)
+tests/                pytest -q  (pip install -r requirements-dev.txt)
+```
 
 ## Contribution
 

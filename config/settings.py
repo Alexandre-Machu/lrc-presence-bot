@@ -1,3 +1,4 @@
+import json
 import os
 from dotenv import load_dotenv
 from zoneinfo import ZoneInfo
@@ -30,3 +31,17 @@ PRESENCE_STATUS = {
     EMOJI_ABSENT: 'Non',
     EMOJI_MAYBE: 'Ne sait pas'
 }
+
+# Jeux proposés dans le menu (config/games.json, 25 max : limite Discord)
+GAMES_FILE = os.path.join(BASE_DIR, 'config', 'games.json')
+
+
+def load_games():
+    with open(GAMES_FILE, encoding='utf-8') as f:
+        games = json.load(f)
+    if not 1 <= len(games) <= 25:
+        raise ValueError("config/games.json doit contenir entre 1 et 25 jeux")
+    return games
+
+
+GAMES = load_games()
