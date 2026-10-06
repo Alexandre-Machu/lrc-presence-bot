@@ -1,2 +1,9 @@
 .env
 config/google_credentials.json
+__pycache__/
+*.pyc
+venv/
+.venv/
+# Données runtime (générées par le bot)
+data/
+birthdays.json

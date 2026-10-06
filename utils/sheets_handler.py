@@ -1,52 +1,38 @@
+import asyncio
+from datetime import datetime
+
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
-from datetime import datetime
-import pandas as pd
+
+from config.settings import GOOGLE_CREDENTIALS_FILE
+
 
 class SheetsHandler:
     def __init__(self, spreadsheet_id):
         self.spreadsheet_id = spreadsheet_id
         self.creds = service_account.Credentials.from_service_account_file(
-            'config/google_credentials.json',
+            GOOGLE_CREDENTIALS_FILE,
             scopes=['https://www.googleapis.com/auth/spreadsheets']
         )
         self.service = build('sheets', 'v4', credentials=self.creds)
         self.sheet = self.service.spreadsheets()
 
-    def add_entry(self, user, presence, timezone, specific_date=None, arrival_time=None):
-        try:
-            if specific_date:
-                date = specific_date
-            else:
-                date = datetime.now(timezone)
-            today = date.strftime("%d/%m/%Y")
-            
-            values = [[today, user, presence, arrival_time if arrival_time else '']]
-            
-            body = {
-                'values': values
-            }
-            
-            result = self.sheet.values().append(
-                spreadsheetId=self.spreadsheet_id,
-                range='Présences!A:D',
-                valueInputOption='RAW',
-                body=body
-            ).execute()
-            
-            print(f"Ajout d'une entrée : {user} - {presence} - {arrival_time}")
-            
-        except Exception as e:
-            print(f"Erreur lors de l'ajout de l'entrée : {e}")
-            raise e
+    def add_entries(self, rows, date: datetime):
+        """Ajoute plusieurs lignes en un seul appel.
 
-    def get_stats(self):
-        result = self.sheet.values().get(
+        rows : liste de tuples (user, presence, arrival_time).
+        """
+        if not rows:
+            return
+        day = date.strftime("%d/%m/%Y")
+        values = [[day, user, presence, arrival or ''] for user, presence, arrival in rows]
+        self.sheet.values().append(
             spreadsheetId=self.spreadsheet_id,
-            range='Présences!A:C'
+            range='Présences!A:D',
+            valueInputOption='RAW',
+            body={'values': values}
         ).execute()
-        values = result.get('values', [])
-        
-        # Convertit en DataFrame pour faciliter l'analyse
-        df = pd.DataFrame(values[1:], columns=values[0])
-        return df
+
+    async def add_entries_async(self, rows, date: datetime):
+        """Version non bloquante pour la boucle asyncio."""
+        await asyncio.to_thread(self.add_entries, rows, date)

@@ -1,4 +1,4 @@
-# LRC Presence Bot V1.4.0
+# LRC Presence Bot V1.5.0
 
 Bot Discord pour la gestion des présences du LRC.
 
@@ -12,22 +12,23 @@ Bot Discord pour la gestion des présences du LRC.
 
 ## Commandes
 
-- `/lrcshowpresence [date]` : Liste des présences (et jeux associés)
-- `/lrcsendpresencemessage` : Envoie manuellement le message de présence
-- `/lrcpush [date]` : Export vers Google Sheets
-- `/lrcreset` : Réinitialise le message de présence
-- `/lrcaddbirthday @user JJ/MM` : Ajoute ou modifie l'anniversaire d'un membre
-- `/lrcremovebirthday @user` : Supprime l'anniversaire d'un membre
-- `/lrcbirthdays` : Affiche les anniversaires à venir
+- `/lrcbirthdays` : Affiche les anniversaires des 30 prochains jours
 - `/lrcinfo` : Affiche le guide des commandes
 
-## Automatisation
+Réservées aux administrateurs :
 
-- Message de présence quotidien à 8h00
-- Push automatique des données vers Google Sheets à 23h30
-- Notification anniversaire à 8h05
+- `/lrcreset` : Réinitialise et renvoie le message de présence
+- `/lrcaddbirthday @user JJ/MM` : Ajoute ou modifie l'anniversaire d'un membre
+- `/lrcremovebirthday @user` : Supprime l'anniversaire d'un membre
 
-**Note :** Le bot n'envoie plus de récapitulatif automatique des présences à 20h15.
+## Automatisation (heure de Paris)
+
+- 8h00 : nouveau message de présence (état remis à zéro)
+- 8h05 : notification des anniversaires
+- 23h30 : push des présences vers Google Sheets
+
+L'état du jour est sauvegardé dans `data/state.json` : un redémarrage du bot ne
+perd ni les réponses ni le fonctionnement des menus.
 
 ## Installation
 
@@ -41,9 +42,12 @@ Bot Discord pour la gestion des présences du LRC.
 Fichier `.env` requis avec les variables suivantes :
 ```
 DISCORD_TOKEN=your_discord_token
-GOOGLE_SPREADSHEET_ID=your_spreadsheet_id
+GOOGLE_SPREADSHEET_ID=your_spreadsheet_id   # optionnel
 CHANNEL_ID=your_channel_id
+GUILD_ID=your_guild_id                       # optionnel
 ```
+
+Le compte de service Google va dans `config/google_credentials.json` (non versionné).
 
 ## Contribution
 
