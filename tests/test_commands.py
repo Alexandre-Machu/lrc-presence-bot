@@ -135,6 +135,21 @@ def test_lrcinfo_sends_guide_embed():
     assert len(kw["embed"].fields) >= 4
 
 
+def test_lrcinfo_topics():
+    from discord import app_commands
+    cog = info_cog.Info(None)
+    for key in info_cog.TOPICS:
+        inter = make_interaction(member(1))
+        run(cog.lrcinfo.callback(cog, inter, app_commands.Choice(name=key, value=key)))
+        assert last(inter)[2]["embed"].fields and last(inter)[2]["ephemeral"] is True
+    inter = make_interaction(member(1))
+    run(cog.lrcinfo.callback(cog, inter, app_commands.Choice(name="Anniversaires", value="anniversaires")))
+    text = " ".join(f.value for f in last(inter)[2]["embed"].fields)
+    for expected in ("/lrcbirthday", "/lrcbirthdays", "/lrcremovebirthday", "8h05"):
+        assert expected in text
+    assert "lrcaddbirthday" not in text
+
+
 # ---------------------------------------------------------------- anniversaires
 
 def test_birthday_with_date_saves_for_self():
@@ -364,18 +379,27 @@ def select(child, *values):
 def test_presence_view_has_all_components():
     async def go():
         view, kids = view_children(new_presence())
-        assert set(kids) == {"PresenceSelect", "ArrivalTimeSelect", "GameSelect", "ExactTimeButton", "AbsencePanelButton"}
+        assert set(kids) == {"PresenceSelect", "ArrivalTimeSelect", "GameSelect", "AbsencePanelButton"}
         ids = [c.custom_id for c in view.children]
         assert len(ids) == len(set(ids))  # custom_id uniques (vue persistante)
         n_options = len(kids["ArrivalTimeSelect"].options)
-        assert n_options <= 25 and n_options > 6
+        assert n_options == 9
     run(go())
 
 
-def test_arrival_slots_are_ordered_and_cover_evening():
-    slots = presence_cog.ARRIVAL_SLOTS
-    assert slots == sorted(slots) and slots[0] == "18:00" and slots[-1] == "23:30"
-    assert "20:30" in slots and "21:45" in slots
+def test_arrival_slots_match_requested_list():
+    assert presence_cog.ARRIVAL_SLOTS == [
+        "19:30", "20:00", "20:30", "21:00", "21:30", "22:00", "22:30", "23:00"]
+
+
+def test_arrival_select_first_option_is_manual_entry():
+    async def go():
+        _, kids = view_children(new_presence())
+        options = kids["ArrivalTimeSelect"].options
+        assert options[0].label == "Entrer manuellement" and options[0].value == presence_cog.MANUAL_VALUE
+        assert [o.label for o in options[1:]] == [
+            "19h30", "20h00", "20h30", "21h00", "21h30", "22h00", "22h30", "23h00"]
+    run(go())
 
 
 def test_present_absent_maybe_flow_keeps_games():
@@ -388,8 +412,8 @@ def test_present_absent_maybe_flow_keeps_games():
         inter = make_interaction(member(1))
         await select(kids["GameSelect"], "CS2", "OW").callback(inter)
         inter = make_interaction(member(1))
-        await select(kids["ArrivalTimeSelect"], "21:45").callback(inter)
-        assert cog.state.arrival == {"1": "21:45"} and cog.state.games == {"1": ["CS2", "OW"]}
+        await select(kids["ArrivalTimeSelect"], "21:30").callback(inter)
+        assert cog.state.arrival == {"1": "21:30"} and cog.state.games == {"1": ["CS2", "OW"]}
         # absent : les jeux sont CONSERVÉS
         inter = make_interaction(member(1))
         await select(kids["PresenceSelect"], "absent").callback(inter)
@@ -450,13 +474,22 @@ def test_exact_time_modal():
     run(go())
 
 
-def test_exact_time_button_opens_modal():
+def test_manual_option_opens_modal_and_resets_menu():
     async def go():
         cog = new_presence()
         _, kids = view_children(cog)
+        edits = []
+
+        async def edit(**kw):
+            edits.append(kw)
+
         inter = make_interaction(member(1))
-        await kids["ExactTimeButton"].callback(inter)
+        inter.message = SimpleNamespace(edit=edit)
+        await select(kids["ArrivalTimeSelect"], presence_cog.MANUAL_VALUE).callback(inter)
         assert last(inter)[0] == "send_modal"
+        assert isinstance(last(inter)[1], presence_cog.ExactTimeModal)
+        assert edits and edits[0]["view"] is not None   # menu remis à zéro
+        assert cog.state.arrival == {}                  # rien d'enregistré tant que le formulaire n'est pas validé
     run(go())
 
 

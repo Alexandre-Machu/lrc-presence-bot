@@ -30,11 +30,9 @@ def fmt_time(value):
     return value.replace(":", "h")
 
 
-# 18h00-20h00 toutes les 30 min, puis toutes les 15 min jusqu'à 23h30
-ARRIVAL_SLOTS = (
-    ["18:00", "18:30", "19:00", "19:30", "20:00"]
-    + [f"{m // 60:02d}:{m % 60:02d}" for m in range(20 * 60 + 15, 23 * 60 + 31, 15)]
-)
+# 19h30 -> 23h00 toutes les 30 min ; pour le reste, « Entrer manuellement »
+ARRIVAL_SLOTS = [f"{m // 60:02d}:{m % 60:02d}" for m in range(19 * 60 + 30, 23 * 60 + 1, 30)]
+MANUAL_VALUE = "manual"
 
 
 # ---------------------------------------------------------------- Menus
@@ -73,14 +71,24 @@ class PresenceSelect(discord.ui.Select):
 class ArrivalTimeSelect(discord.ui.Select):
     def __init__(self):
         super().__init__(
-            placeholder="Heure d'arrivée (ou « pas avant » si pas sûr)",
+            placeholder="Heure d'arrivée (« pas avant » si pas sûr)",
             custom_id="arrival_time_select",
-            options=[discord.SelectOption(label=fmt_time(t), value=t) for t in ARRIVAL_SLOTS]
-            + [discord.SelectOption(label="Plus tard", value="later")],
+            options=[discord.SelectOption(
+                label="Entrer manuellement", value=MANUAL_VALUE, emoji="✏️",
+                description="Tape ton heure exacte (ex : 21h40)",
+            )] + [discord.SelectOption(label=fmt_time(t), value=t) for t in ARRIVAL_SLOTS],
         )
 
     async def callback(self, interaction: discord.Interaction):
         cog = self.view.cog
+        if self.values[0] == MANUAL_VALUE:
+            await interaction.response.send_modal(ExactTimeModal(cog))
+            # remet le menu à zéro, sinon « Entrer manuellement » resterait affiché si le formulaire est fermé
+            try:
+                await interaction.message.edit(view=PresenceView(cog))
+            except (discord.HTTPException, AttributeError):
+                pass
+            return
         known = cog.set_arrival(interaction.user.id, self.values[0])
         await cog.refresh(interaction)
         if not known:
@@ -136,17 +144,6 @@ class ExactTimeModal(discord.ui.Modal, title="Heure d'arrivée exacte"):
             await self.cog.hint_presence_needed(interaction)
 
 
-class ExactTimeButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="Heure exacte", emoji="🕒", style=discord.ButtonStyle.secondary,
-            custom_id="exact_time", row=3,
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        await interaction.response.send_modal(ExactTimeModal(self.view.cog))
-
-
 class AbsencePanelButton(discord.ui.Button):
     def __init__(self):
         super().__init__(
@@ -167,7 +164,6 @@ class PresenceView(discord.ui.View):
         self.add_item(PresenceSelect())
         self.add_item(ArrivalTimeSelect())
         self.add_item(GameSelect())
-        self.add_item(ExactTimeButton())
         self.add_item(AbsencePanelButton())
 
 

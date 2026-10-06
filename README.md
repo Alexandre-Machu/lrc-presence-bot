@@ -1,4 +1,4 @@
-# LRC Presence Bot V1.8.0
+# LRC Presence Bot V1.8.1
 
 Bot Discord pour la gestion des présences du LRC.
 
@@ -24,8 +24,9 @@ Anniversaires :
 - `/lrcbirthday` : enregistre **ton** anniversaire (un formulaire s'ouvre, ou `/lrcbirthday 25/12`)
 - `/lrcremovebirthday` : supprime ton anniversaire
 - `/lrcbirthdays` : anniversaires des 30 prochains jours
+- `/lrcinfo sujet:Anniversaires` : le guide détaillé (aussi pour Absences et Présence)
 
-Présence : menu d'heure d'arrivée de 18h00 à 23h30, ou bouton **🕒 Heure exacte** pour taper la tienne (`21:40`, `21h40`).
+Présence : menu d'heure d'arrivée de 19h30 à 23h00 (par 30 min), ou **✏️ Entrer manuellement** pour taper la tienne (`21:40`, `21h40`).
 
 Administrateurs : `/lrcreset` (nouveau message de présence), et `/lrcbirthday`/`/lrcremovebirthday` avec `user:` pour un autre membre.
 
