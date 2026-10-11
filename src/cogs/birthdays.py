@@ -15,6 +15,8 @@ from utils.storage import (
 
 log = logging.getLogger(__name__)
 
+BIRTHDAY_PREFIX = "🎉 **Joyeux anniversaire"
+
 
 async def find_member(guild: discord.Guild, user_id: int):
     """Membre du serveur, même s'il n'est pas dans le cache ; None s'il est parti."""
@@ -83,7 +85,7 @@ class Birthdays(commands.Cog):
                 continue
             member = await find_member(channel.guild, int(user_id))
             if member and not member.bot:
-                await channel.send(f"🎉 **Joyeux anniversaire {member.mention} !** 🎂")
+                await channel.send(f"{BIRTHDAY_PREFIX} {member.mention} !** 🎂")
                 sent += 1
         set_last_birthday_notice(today.isoformat())
         log.info("Anniversaires du jour : %d message(s)", sent)

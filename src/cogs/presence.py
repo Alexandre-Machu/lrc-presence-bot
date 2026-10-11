@@ -10,6 +10,7 @@ from discord.ext import commands, tasks
 from config.settings import (
     CHANNEL_ID, GAMES, GOOGLE_CREDENTIALS_FILE, GOOGLE_SPREADSHEET_ID, GUILD_ID, TIMEZONE,
 )
+from cogs.birthdays import BIRTHDAY_PREFIX
 from utils.absences import absent_on, load_absences, purge_past, save_absences
 from utils.storage import PresenceState
 from utils.times import parse_arrival_time
@@ -265,11 +266,19 @@ class Presence(commands.Cog):
             and (message.embeds[0].title or "").startswith(PRESENCE_TITLE)
         )
 
+    def is_old_birthday_message(self, message: discord.Message):
+        """Vœux d'anniversaire d'un jour précédent (ceux du jour restent affichés)."""
+        return (
+            message.author == self.bot.user
+            and (message.content or "").startswith(BIRTHDAY_PREFIX)
+            and message.created_at.astimezone(TIMEZONE).date() < datetime.now(TIMEZONE).date()
+        )
+
     async def clear_old_presence_messages(self, channel):
-        """Supprime uniquement les anciens messages de présence (pas les anniversaires)."""
+        """Supprime les anciens messages de présence et les vœux d'anniversaire des jours passés."""
         try:
             async for message in channel.history(limit=50):
-                if self.is_presence_message(message):
+                if self.is_presence_message(message) or self.is_old_birthday_message(message):
                     await message.delete()
         except discord.HTTPException as e:
             log.error("Erreur nettoyage messages : %s", e)

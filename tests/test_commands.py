@@ -535,3 +535,33 @@ def test_lrcreset_admin_flow_and_permission_decorator():
 def test_birthday_and_absence_commands_open_to_everyone():
     assert not birthdays_cog.Birthdays(None).lrcbirthday.checks
     assert not absences_cog.Absences(None).lrcabsence.checks
+
+
+# ---------------------------------------------------------------- nettoyage
+
+def test_cleanup_removes_old_birthday_wishes_but_keeps_todays():
+    bot_user = SimpleNamespace(id=1)
+    cog = presence_cog.Presence(SimpleNamespace(user=bot_user, get_channel=lambda i: None))
+    now = datetime.now(TIMEZONE)
+    deleted = []
+
+    def msg(name, content, created_at, author=bot_user):
+        async def delete():
+            deleted.append(name)
+        return SimpleNamespace(author=author, content=content, embeds=[], created_at=created_at, delete=delete)
+
+    wish = f"{birthdays_cog.BIRTHDAY_PREFIX} <@5> !** 🎂"
+    messages = [
+        msg("hier", wish, now - timedelta(days=1)),
+        msg("aujourdhui", wish, now),
+        msg("humain", wish, now - timedelta(days=3), author=SimpleNamespace(id=2)),
+        msg("autre", "Bonjour", now - timedelta(days=3)),
+    ]
+
+    class Channel(FakeChannel):
+        async def history(self, limit=50):
+            for m in messages:
+                yield m
+
+    run(cog.clear_old_presence_messages(Channel()))
+    assert deleted == ["hier"]
