@@ -85,7 +85,7 @@ class PresenceState:
             log.error("Sauvegarde de l'état impossible : %s", e)
         try:
             from utils.history import record_day
-            record_day(self.date, self.presence, self.games)
+            record_day(self.date, self.presence, self.games, self.arrival)
         except (OSError, ValueError) as e:
             log.error("Sauvegarde de l'historique impossible : %s", e)
 
@@ -108,6 +108,14 @@ def get_last_birthday_notice():
 
 
 def set_last_birthday_notice(iso_date):
+    set_meta("last_birthday_notice", iso_date)
+
+
+def get_meta(key):
+    return _read_json(META_FILE, {}).get(key)
+
+
+def set_meta(key, value):
     meta = _read_json(META_FILE, {})
-    meta["last_birthday_notice"] = iso_date
+    meta[key] = value
     _write_json(META_FILE, meta)

@@ -1,4 +1,4 @@
-# LRC Presence Bot V1.9.0
+# LRC Presence Bot V1.10.0
 
 Bot Discord pour la gestion des présences du LRC.
 
@@ -27,7 +27,7 @@ Anniversaires :
 - `/lrcbirthdays` : anniversaires des 30 prochains jours
 - `/lrcinfo sujet:Anniversaires` : le guide détaillé (aussi pour Absences et Présence)
 
-Stats : `/lrcstats [periode]` : les plus présents, les jeux les plus demandés, la soirée record. Chaque journée est enregistrée dans `data/history.json`.
+Stats : `/lrcstats [periode]` : les plus présents, les jeux les plus demandés, la soirée record. Chaque journée est enregistrée dans `data/history.json`. 🔥N à côté d'un présent = N soirées d'affilée (à partir de 3). Le 1er du mois à 10h, le bot poste le récap du mois précédent avec des titres (couche-tard, lève-tôt, fantôme, touche-à-tout, plus assidu).
 
 Présence : menu d'heure d'arrivée de 19h30 à 23h00 (par 30 min), ou **✏️ Entrer manuellement** pour taper la tienne (`21:40`, `21h40`).
 

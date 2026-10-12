@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from config.settings import GUILD_ID
 
-VERSION = "V1.9.0"
+VERSION = "V1.10.0"
 
 # Une seule source de vérité : le guide ET le test qui vérifie que chaque commande existe
 GUIDE_SECTIONS = [
@@ -32,13 +32,15 @@ GUIDE_SECTIONS = [
     ]),
     ("📊 Stats", [
         "`/lrcstats` : les plus présents, les jeux les plus demandés, la soirée record (7 jours, 30 jours ou depuis le début).",
+        "🔥 À côté de ton nom : tes soirées d'affilée (à partir de 3).",
+        "Le 1er du mois à 10h : récap du mois avec ses titres (🦉 couche-tard, 👻 fantôme…).",
     ]),
     ("🛠️ Admin", [
         "`/lrcreset` : nouveau message de présence (remet tout à zéro).",
         "`/lrcbirthday ... user:@membre` et `/lrcremovebirthday user:@membre` : pour un autre membre.",
     ]),
     ("⏰ Automatique (heure de Paris)", [
-        "8h00 : message de présence · 8h05 : vœux d'anniversaire.",
+        "8h00 : message de présence · 8h05 : vœux d'anniversaire · le 1er du mois à 10h : récap du mois.",
     ]),
 ]
 

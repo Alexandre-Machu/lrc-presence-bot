@@ -12,6 +12,7 @@ from config.settings import (
 )
 from cogs.birthdays import BIRTHDAY_PREFIX
 from utils.absences import absent_on, load_absences, load_weekly, purge_past, save_absences, weekly_absent_on
+from utils.history import STREAK_MIN, current_streaks, load_history
 from utils.storage import PresenceState
 from utils.times import parse_arrival_time
 
@@ -204,12 +205,15 @@ class Presence(commands.Cog):
         maybe = [u for u, s in state.presence.items() if s == ST_MAYBE]
         absents = [u for u, s in state.presence.items() if s == ST_ABSENT]
 
+        streaks = current_streaks(load_history(), datetime.now(TIMEZONE).date().isoformat()) if presents else {}
+
         content = f"**Présences pour le {today} :**\n\n"
         if presents:
             content += "**Présents :**\n"
             for uid in presents:
                 t = fmt_time(state.arrival.get(uid))
-                content += f"- <@{uid}>{f' ({t})' if t else ''} {self.games_emojis(uid)}\n"
+                fire = f" 🔥{streaks[uid]}" if streaks.get(uid, 0) >= STREAK_MIN else ""
+                content += f"- <@{uid}>{f' ({t})' if t else ''}{fire} {self.games_emojis(uid)}\n"
         if maybe:
             content += "\n**Personnes pas sûres :**\n"
             for uid in maybe:

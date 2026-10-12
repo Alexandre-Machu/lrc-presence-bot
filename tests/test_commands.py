@@ -684,3 +684,89 @@ def test_lrcstats_command():
     text = "\n".join(f.value for f in embed.fields)
     assert "<@1>" in text and "<@3>" not in text and "LoL" in text
     assert last(inter)[2]["allowed_mentions"].users is False
+
+
+# ---------------------------------------------------------------- séries 🔥 et récap du mois
+
+def day_entry(presence, games=None, arrival=None):
+    return {"presence": presence, "games": games or {}, "arrival": arrival or {}}
+
+
+def test_arrival_recorded_in_history():
+    state = storage.PresenceState()
+    state.presence = {"1": "Présent"}
+    state.arrival = {"1": "21:40"}
+    state.save()
+    assert history_utils.load_history()[today().isoformat()]["arrival"] == {"1": "21:40"}
+
+
+def test_current_streaks_skip_empty_days_and_break_on_missed_night():
+    h = {
+        "2026-10-01": day_entry({"1": "Présent", "2": "Présent"}),
+        "2026-10-02": day_entry({"1": "Présent"}),
+        "2026-10-03": day_entry({"3": "Absent"}),          # personne : ne casse pas la série
+        "2026-10-04": day_entry({"1": "Présent", "2": "Présent"}),
+    }
+    assert history_utils.current_streaks(h, "2026-10-04") == {"1": 3, "2": 1}
+    assert history_utils.current_streaks(h, "2026-10-05") == {}  # pas de soirée ce jour-là
+    assert history_utils.best_streaks(h) == {"1": 3, "2": 1}
+
+
+def test_streak_shown_in_daily_message():
+    pres = new_presence()
+    t = today()
+    history_utils._write_json(history_utils.HISTORY_FILE, {
+        (t - timedelta(days=2)).isoformat(): day_entry({"1": "Présent", "2": "Présent"}),
+        (t - timedelta(days=1)).isoformat(): day_entry({"1": "Présent"}),
+    })
+    pres.state.presence = {"1": "Présent", "2": "Présent"}
+    pres.state.save()
+    text = pres.build_embed().description
+    assert "<@1> 🔥3" in text
+    assert "<@2> 🔥" not in text
+
+
+def test_month_recap_titles():
+    def arr(t):
+        return {"presence": {"1": "Présent", "2": "Présent", "3": "Ne sait pas"},
+                "games": {"1": ["LoL", "Valorant", "CS2"], "2": ["LoL"]},
+                "arrival": {"1": t, "2": "19:30"}}
+    h = {f"2026-10-0{i}": arr(t) for i, t in [(1, "22:00"), (2, "23:30"), (3, "00:30")]}
+    h["2026-11-01"] = day_entry({"9": "Présent"})
+    stats, titles = history_utils.month_recap(h, 2026, 10)
+    assert stats["nights"] == 3 and stats["top_players"][0][1] == 3
+    got = {title: (uid, detail) for title, uid, detail in titles}
+    assert got["🦉 Le couche-tard"] == ("1", "arrive en moyenne à 23h20")
+    assert got["🐓 Le lève-tôt"][0] == "2"
+    assert got["👻 Le fantôme"] == ("3", "3 « Ne sait pas »")
+    assert got["🎲 Le touche-à-tout"][0] == "1"
+    assert got["🔥 Le plus assidu"][1] == "3 soirées d'affilée"
+    assert history_utils.month_bounds(2026, 12) == (date(2026, 12, 1), date(2026, 12, 31))
+    assert history_utils.previous_month(date(2027, 1, 1)) == (2026, 12)
+
+
+def test_monthly_recap_posted_once_on_the_first(monkeypatch):
+    channel = FakeChannel()
+    cog = stats_cog.Stats(SimpleNamespace(get_channel=lambda i: channel))
+    history_utils._write_json(history_utils.HISTORY_FILE, {
+        "2026-10-12": day_entry({"1": "Présent"}, {"1": ["LoL"]}),
+    })
+
+    def at(*args):
+        class FakeDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(*args, tzinfo=tz)
+        monkeypatch.setattr(stats_cog, "datetime", FakeDatetime)
+
+    at(2026, 11, 1, 9, 0)
+    assert run(cog.post_recap_if_due()) is False      # avant 10h
+    at(2026, 11, 1, 10, 0)
+    assert run(cog.post_recap_if_due()) is True
+    assert "octobre 2026" in channel.sent[0][1]["embed"].title
+    assert run(cog.post_recap_if_due()) is False      # une seule fois
+    at(2026, 12, 5, 10, 0)
+    assert run(cog.post_recap_if_due()) is False      # trop tard pour rattraper novembre
+    at(2027, 1, 2, 12, 0)
+    assert run(cog.post_recap_if_due()) is False      # décembre vide : rien de posté
+    assert len(channel.sent) == 1

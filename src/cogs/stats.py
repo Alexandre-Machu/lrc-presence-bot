@@ -1,13 +1,19 @@
-"""Stats des soirées (/lrcstats), calculées sur l'historique enregistré chaque jour."""
-from datetime import date, datetime, timedelta
+"""Stats des soirées (/lrcstats) et récap automatique du mois, calculés sur l'historique."""
+import logging
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
-from config.settings import GAMES, GUILD_ID, TIMEZONE
-from utils.history import compute_stats, load_history
+from config.settings import CHANNEL_ID, GAMES, GUILD_ID, TIMEZONE
+from utils.history import MONTHS, compute_stats, load_history, month_recap, previous_month
+from utils.storage import get_meta, set_meta
+
+log = logging.getLogger(__name__)
+RECAP_HOUR = 10
+RECAP_CATCH_UP_DAYS = 3  # bot éteint le 1er : récap rattrapé jusqu'au 3
 
 GAME_EMOJIS = {g["name"]: g["emoji"] for g in GAMES}
 MEDALS = ["🥇", "🥈", "🥉"]
@@ -45,9 +51,63 @@ def build_stats_embed(stats, label):
     return embed
 
 
+def build_recap_embed(stats, titles, year, month):
+    embed = build_stats_embed(stats, f"récap de {MONTHS[month - 1]} {year}")
+    embed.title = f"🗓️ Récap de {MONTHS[month - 1]} {year}"
+    if titles:
+        embed.add_field(
+            name="🏅 Les titres du mois",
+            value="\n".join(f"**{title}** : <@{uid}> ({detail})" for title, uid, detail in titles),
+            inline=False,
+        )
+    return embed
+
+
 class Stats(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+
+    async def cog_load(self):
+        self.monthly_recap.start()
+
+    async def cog_unload(self):
+        self.monthly_recap.cancel()
+
+    async def post_recap_if_due(self):
+        """Poste le récap du mois précédent, une seule fois, entre le 1er (10h) et le 3."""
+        now = datetime.now(TIMEZONE)
+        if now.day > RECAP_CATCH_UP_DAYS or (now.day == 1 and now.hour < RECAP_HOUR):
+            return False
+        year, month = previous_month(now.date())
+        key = f"{year}-{month:02d}"
+        if get_meta("last_monthly_recap") == key:
+            return False
+        stats, titles = month_recap(load_history(), year, month)
+        set_meta("last_monthly_recap", key)
+        if not stats["nights"]:
+            log.info("Récap %s : aucune soirée, rien à poster", key)
+            return False
+        channel = self.bot.get_channel(CHANNEL_ID)
+        if not channel:
+            log.error("Canal introuvable pour le récap du mois")
+            return False
+        await channel.send(embed=build_recap_embed(stats, titles, year, month),
+                           allowed_mentions=discord.AllowedMentions.none())
+        log.info("Récap du mois %s posté", key)
+        return True
+
+    @tasks.loop(time=time(hour=RECAP_HOUR, minute=0, tzinfo=TIMEZONE))
+    async def monthly_recap(self):
+        await self.post_recap_if_due()
+
+    @monthly_recap.before_loop
+    async def before_monthly_recap(self):
+        await self.bot.wait_until_ready()
+        await self.post_recap_if_due()
+
+    @monthly_recap.error
+    async def monthly_recap_error(self, error):
+        log.exception("Erreur lors du récap du mois", exc_info=error)
 
     @app_commands.command(name="lrcstats", description="Stats des soirées : les plus présents, les jeux les plus joués…")
     @app_commands.describe(periode="Période (30 derniers jours par défaut)")
