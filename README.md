@@ -1,4 +1,4 @@
-# LRC Presence Bot V1.11.1
+# LRC Presence Bot V1.11.2
 
 Bot Discord pour la gestion des présences du LRC.
 

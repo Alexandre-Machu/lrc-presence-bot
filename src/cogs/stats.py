@@ -121,17 +121,17 @@ class Stats(commands.Cog):
         log.exception("Erreur lors du récap du mois", exc_info=error)
 
     @app_commands.command(name="lrcstats", description="Stats des soirées : les plus présents, les jeux les plus joués…")
-    @app_commands.describe(periode="Période (30 derniers jours par défaut)")
+    @app_commands.describe(periode="Période (depuis le début par défaut)")
     @app_commands.choices(periode=[
         app_commands.Choice(name="7 derniers jours", value=7),
         app_commands.Choice(name="30 derniers jours", value=30),
         app_commands.Choice(name="Depuis le début", value=0),
     ])
     async def lrcstats(self, interaction: discord.Interaction, periode: Optional[app_commands.Choice[int]] = None):
-        days = periode.value if periode else 30
+        days = periode.value if periode else 0
         today = datetime.now(TIMEZONE).date()
         since = today - timedelta(days=days - 1) if days else None
-        label = periode.name if periode else "30 derniers jours"
+        label = periode.name if periode else "Depuis le début"
         embed = build_stats_embed(compute_stats(load_history(), since), label, since, today if since else None)
         # message visible par tous, mais sans notifier les membres cités
         await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions.none())

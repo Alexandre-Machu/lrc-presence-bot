@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from config.settings import GUILD_ID
 
-VERSION = "V1.11.1"
+VERSION = "V1.11.2"
 
 # Une seule source de vérité : le guide ET le test qui vérifie que chaque commande existe
 GUIDE_SECTIONS = [

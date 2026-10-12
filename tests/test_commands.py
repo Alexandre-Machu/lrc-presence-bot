@@ -20,6 +20,9 @@ from cogs import birthdays as birthdays_cog  # noqa: E402
 from cogs import info as info_cog  # noqa: E402
 from cogs import presence as presence_cog  # noqa: E402
 from cogs import stats as stats_cog  # noqa: E402
+from discord import app_commands  # noqa: E402
+
+THIRTY_DAYS = app_commands.Choice(name="30 derniers jours", value=30)
 
 
 def today():
@@ -679,7 +682,7 @@ def test_lrcstats_command():
         (t - timedelta(days=60)).isoformat(): {"presence": {"3": "Présent"}, "games": {}},
     })
     inter = make_interaction(member(1))
-    run(cog.lrcstats.callback(cog, inter, None))  # 30 jours par défaut
+    run(cog.lrcstats.callback(cog, inter, THIRTY_DAYS))
     embed = last(inter)[2]["embed"]
     text = "\n".join(f.value for f in embed.fields)
     assert "<@1>" in text and "<@3>" not in text and "LoL" in text
@@ -837,9 +840,23 @@ def test_stats_ranking_not_a_markdown_list_and_period_shown():
     })
     cog = stats_cog.Stats(None)
     inter = make_interaction(member(1))
-    run(cog.lrcstats.callback(cog, inter, None))
+    run(cog.lrcstats.callback(cog, inter, THIRTY_DAYS))
     embed = last(inter)[2]["embed"]
     lines = embed.fields[1].value.split("\n")
     assert lines[0].startswith("🥇") and lines[3].startswith(r"4\.") and lines[4].startswith(r"5\.")
     since = (t - timedelta(days=29)).strftime("%d/%m/%Y")
     assert embed.description == f"Du {since} au {t.strftime('%d/%m/%Y')}"
+
+
+def test_stats_default_is_all_time():
+    t = today()
+    history_utils._write_json(history_utils.HISTORY_FILE, {
+        t.isoformat(): day_entry({"1": "Présent"}),
+        "2025-07-05": day_entry({"2": "Présent"}),
+    })
+    cog = stats_cog.Stats(None)
+    inter = make_interaction(member(1))
+    run(cog.lrcstats.callback(cog, inter, None))
+    embed = last(inter)[2]["embed"]
+    assert "Depuis le début" in embed.title and embed.description is None
+    assert "<@2>" in embed.fields[1].value
