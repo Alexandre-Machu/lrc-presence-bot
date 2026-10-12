@@ -11,7 +11,7 @@ from config.settings import (
     CHANNEL_ID, GAMES, GOOGLE_CREDENTIALS_FILE, GOOGLE_SPREADSHEET_ID, GUILD_ID, TIMEZONE,
 )
 from cogs.birthdays import BIRTHDAY_PREFIX
-from utils.absences import absent_on, load_absences, purge_past, save_absences
+from utils.absences import absent_on, load_absences, load_weekly, purge_past, save_absences, weekly_absent_on
 from utils.storage import PresenceState
 from utils.times import parse_arrival_time
 
@@ -284,12 +284,12 @@ class Presence(commands.Cog):
             log.error("Erreur nettoyage messages : %s", e)
 
     def apply_planned_absences(self):
-        """Pré-remplit « Absent » pour ceux qui ont planifié une absence aujourd'hui."""
+        """Pré-remplit « Absent » pour ceux qui ont planifié une absence aujourd'hui (ponctuelle ou récurrente)."""
         today = datetime.now(TIMEZONE).date()
         absences = load_absences()
         if purge_past(absences, today):
             save_absences(absences)
-        for uid in absent_on(absences, today):
+        for uid in absent_on(absences, today) | weekly_absent_on(load_weekly(), today):
             self.state.presence[uid] = ST_ABSENT
 
     async def send_presence_message(self, channel):

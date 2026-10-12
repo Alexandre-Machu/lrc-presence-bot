@@ -9,8 +9,8 @@ from discord.ext import commands
 
 from config.settings import GUILD_ID, TIMEZONE
 from utils.absences import (
-    AbsenceError, add_absence, load_absences, parse_date, purge_past, remove_absence, save_absences,
-    to_days, toggle_days,
+    WEEKDAY_NAMES, AbsenceError, add_absence, load_absences, load_weekly, parse_date, purge_past,
+    remove_absence, save_absences, save_weekly, set_weekly, to_days, toggle_days, weekly_label,
 )
 
 log = logging.getLogger(__name__)
@@ -34,12 +34,13 @@ def monday_of(day: date):
 
 
 class DayButton(discord.ui.Button):
-    def __init__(self, cog, day: date, absent: bool, past: bool, row: int):
+    def __init__(self, cog, day: date, absent: bool, past: bool, row: int, weekly: bool = False):
+        # Jour d'absence récurrente : se règle dans le menu 🔁, pas ici
         super().__init__(
             label=f"{DAY_NAMES[day.weekday()]} {day.day}",
-            style=discord.ButtonStyle.danger if absent else discord.ButtonStyle.secondary,
-            emoji="❌" if absent else None,
-            disabled=past,
+            style=discord.ButtonStyle.danger if absent or weekly else discord.ButtonStyle.secondary,
+            emoji="🔁" if weekly else "❌" if absent else None,
+            disabled=past or weekly,
             row=row,
         )
         self.cog, self.day = cog, day
@@ -78,6 +79,22 @@ class CloseButton(discord.ui.Button):
         await interaction.response.edit_message(content="Absences enregistrées ✅", view=None)
 
 
+class WeeklySelect(discord.ui.Select):
+    def __init__(self, cog, weekdays):
+        super().__init__(
+            placeholder="🔁 Absent chaque semaine le…",
+            min_values=0, max_values=7, row=3,
+            options=[
+                discord.SelectOption(label=f"Chaque {name}", value=str(i), default=i in weekdays)
+                for i, name in enumerate(WEEKDAY_NAMES)
+            ],
+        )
+        self.cog = cog
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.cog.update_weekly(interaction, [int(v) for v in self.values], self.view.week_start)
+
+
 class CalendarView(discord.ui.View):
     """Calendrier d'une semaine : un clic sur un jour l'ajoute ou le retire de tes absences."""
 
@@ -86,14 +103,17 @@ class CalendarView(discord.ui.View):
         self.week_start = week_start
         today = datetime.now(TIMEZONE).date()
         mine = to_days(load_absences().get(str(uid), []))
+        weekly = load_weekly().get(str(uid), [])
         days = [week_start + timedelta(days=i) for i in range(7)]
         for i, day in enumerate(days):
-            self.add_item(DayButton(cog, day, day in mine, day < today, row=0 if i < 5 else 1))
+            self.add_item(DayButton(cog, day, day in mine, day < today, row=0 if i < 5 else 1,
+                                    weekly=day.weekday() in weekly))
         self.add_item(WeekButton(cog, [d for d in days if d >= today], disabled=days[-1] < today))
         this_week = monday_of(today)
         self.add_item(NavButton(cog, "◀ Semaine préc.", -1, disabled=week_start <= this_week))
         self.add_item(NavButton(cog, "Semaine suiv. ▶", 1, disabled=week_start >= this_week + timedelta(weeks=MAX_WEEKS_AHEAD)))
         self.add_item(CloseButton())
+        self.add_item(WeeklySelect(cog, weekly))
 
 
 class Absences(commands.Cog):
@@ -110,6 +130,9 @@ class Absences(commands.Cog):
             "Clique sur un jour pour l'ajouter (❌) ou le retirer. "
             "Tu seras marqué absent automatiquement ces jours-là.\n"
         )
+        weekly = load_weekly().get(str(uid), [])
+        if weekly:
+            text += f"\n🔁 **Chaque semaine :** {weekly_label(weekly)}"
         upcoming = [e for e in load_absences().get(str(uid), []) if date.fromisoformat(e["end"]) >= today]
         if upcoming:
             text += "\n**Prévues :** " + " · ".join(fmt_range(e) for e in upcoming[:8])
@@ -137,6 +160,25 @@ class Absences(commands.Cog):
             presence = self.bot.get_cog("Presence")
             if presence:
                 presence.set_absent_today(uid, now_absent)
+                await presence.update_message()
+        await interaction.response.edit_message(
+            content=self.panel_content(uid, week_start),
+            view=self.panel_view(uid, week_start),
+        )
+
+    async def update_weekly(self, interaction: discord.Interaction, weekdays, week_start: date):
+        uid = interaction.user.id
+        today = datetime.now(TIMEZONE).date()
+        data = load_weekly()
+        was_weekly = today.weekday() in data.get(str(uid), [])
+        set_weekly(data, uid, weekdays)
+        save_weekly(data)
+        is_weekly = today.weekday() in weekdays
+        if was_weekly != is_weekly:
+            presence = self.bot.get_cog("Presence")
+            if presence:
+                one_off = today in to_days(load_absences().get(str(uid), []))
+                presence.set_absent_today(uid, is_weekly or one_off)
                 await presence.update_message()
         await interaction.response.edit_message(
             content=self.panel_content(uid, week_start),
@@ -196,10 +238,12 @@ class Absences(commands.Cog):
                 continue
             for entry in entries:
                 rows.append((entry["start"], uid, entry))
-        if not rows:
+        weekly = {uid: days for uid, days in load_weekly().items() if tous or uid == str(interaction.user.id)}
+        if not rows and not weekly:
             await interaction.response.send_message("Aucune absence planifiée.", ephemeral=True)
             return
-        lines = [f"- <@{uid}> : {fmt_range(e)}" for _, uid, e in sorted(rows)]
+        lines = [f"- <@{uid}> : 🔁 chaque {weekly_label(days)}" for uid, days in weekly.items()]
+        lines += [f"- <@{uid}> : {fmt_range(e)}" for _, uid, e in sorted(rows)]
         await interaction.response.send_message(
             "**Absences planifiées :**\n" + "\n".join(lines),
             ephemeral=True, allowed_mentions=discord.AllowedMentions.none(),

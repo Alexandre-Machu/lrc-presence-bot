@@ -14,7 +14,7 @@ from config.settings import CHANNEL_ID, DISCORD_TOKEN, GUILD_ID
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("lrc-bot")
 
-EXTENSIONS = ["cogs.presence", "cogs.birthdays", "cogs.absences", "cogs.info"]
+EXTENSIONS = ["cogs.presence", "cogs.birthdays", "cogs.absences", "cogs.stats", "cogs.info"]
 
 # Tout passe par les slash commands : seul l'intent members est nécessaire (cache des membres)
 intents = discord.Intents.default()

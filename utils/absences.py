@@ -6,7 +6,9 @@ from utils.storage import _read_json, _write_json
 import os
 
 ABSENCES_FILE = os.path.join(DATA_DIR, "absences.json")
+WEEKLY_FILE = os.path.join(DATA_DIR, "weekly_absences.json")
 MAX_SPAN_DAYS = 366
+WEEKDAY_NAMES = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"]
 
 
 class AbsenceError(ValueError):
@@ -90,6 +92,34 @@ def absent_on(data, day: date):
         uid for uid, entries in data.items()
         if any(date.fromisoformat(a["start"]) <= day <= date.fromisoformat(a["end"]) for a in entries)
     }
+
+
+# ---- absences récurrentes : {user_id: [0-6]} (0 = lundi)
+
+def load_weekly():
+    return _read_json(WEEKLY_FILE, {})
+
+
+def save_weekly(data):
+    _write_json(WEEKLY_FILE, data)
+
+
+def set_weekly(data, uid, weekdays):
+    weekdays = sorted({int(d) for d in weekdays})
+    if weekdays:
+        data[str(uid)] = weekdays
+    else:
+        data.pop(str(uid), None)
+
+
+def weekly_absent_on(data, day: date):
+    """Ids des membres absents chaque semaine ce jour-là."""
+    return {uid for uid, days in data.items() if day.weekday() in days}
+
+
+def weekly_label(weekdays):
+    """[0, 3] -> 'lundi, jeudi'."""
+    return ", ".join(WEEKDAY_NAMES[d] for d in sorted(weekdays))
 
 
 def to_days(entries):

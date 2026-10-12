@@ -1,4 +1,4 @@
-# LRC Presence Bot V1.8.2
+# LRC Presence Bot V1.9.0
 
 Bot Discord pour la gestion des présences du LRC.
 
@@ -15,6 +15,7 @@ Bot Discord pour la gestion des présences du LRC.
 Absences (calendrier) :
 
 - Bouton **📅 Mes absences** sous le message du jour, ou `/lrcabsence` : calendrier cliquable (un clic sur un jour = absent, flèches pour changer de semaine)
+- Dans le calendrier, menu **🔁 Absent chaque semaine le…** : absences récurrentes (ex : chaque jeudi)
 - `/lrcabsence debut [fin]` : ou planifie une absence à l'avance (`JJ/MM` ou `JJ/MM/AAAA`). Le jour J, le bot te marque ❌ automatiquement
 - `/lrcabsences [tous]` : liste les absences planifiées (les tiennes, ou celles de tout le monde)
 - `/lrcremoveabsence` : annule une de tes absences
@@ -25,6 +26,8 @@ Anniversaires :
 - `/lrcremovebirthday` : supprime ton anniversaire
 - `/lrcbirthdays` : anniversaires des 30 prochains jours
 - `/lrcinfo sujet:Anniversaires` : le guide détaillé (aussi pour Absences et Présence)
+
+Stats : `/lrcstats [periode]` : les plus présents, les jeux les plus demandés, la soirée record. Chaque journée est enregistrée dans `data/history.json`.
 
 Présence : menu d'heure d'arrivée de 19h30 à 23h00 (par 30 min), ou **✏️ Entrer manuellement** pour taper la tienne (`21:40`, `21h40`).
 
@@ -62,7 +65,7 @@ Le compte de service Google va dans `config/google_credentials.json` (non versio
 
 ```
 src/bot.py            point d'entrée, charge les cogs
-src/cogs/             presence, birthdays, absences, info
+src/cogs/             presence, birthdays, absences, stats, info
 utils/                logique pure (dates, stockage JSON, Sheets)
 config/games.json     liste des jeux du menu (nom + emoji, 25 max)
 tests/                pytest -q  (pip install -r requirements-dev.txt)
