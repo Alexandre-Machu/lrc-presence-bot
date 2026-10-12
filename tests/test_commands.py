@@ -828,3 +828,18 @@ def test_streak_broken_by_long_gap():
     }
     assert history_utils.current_streaks(h, "2026-10-12") == {"1": 1}
     assert history_utils.best_streaks(h) == {"1": 2}
+
+
+def test_stats_ranking_not_a_markdown_list_and_period_shown():
+    t = today()
+    history_utils._write_json(history_utils.HISTORY_FILE, {
+        t.isoformat(): day_entry({str(u): "Présent" for u in range(1, 6)}),
+    })
+    cog = stats_cog.Stats(None)
+    inter = make_interaction(member(1))
+    run(cog.lrcstats.callback(cog, inter, None))
+    embed = last(inter)[2]["embed"]
+    lines = embed.fields[1].value.split("\n")
+    assert lines[0].startswith("🥇") and lines[3].startswith(r"4\.") and lines[4].startswith(r"5\.")
+    since = (t - timedelta(days=29)).strftime("%d/%m/%Y")
+    assert embed.description == f"Du {since} au {t.strftime('%d/%m/%Y')}"

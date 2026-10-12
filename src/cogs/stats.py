@@ -26,11 +26,19 @@ def fr(iso):
     return date.fromisoformat(iso).strftime("%d/%m/%Y")
 
 
-def build_stats_embed(stats, label):
+def rank(i):
+    # « 4. » en début de ligne deviendrait une liste numérotée Discord (mise en page décalée)
+    return MEDALS[i] if i < len(MEDALS) else f"{i + 1}\\."
+
+
+def build_stats_embed(stats, label, since: date = None, until: date = None):
     embed = discord.Embed(title=f"📊 Stats LRC — {label}", color=discord.Color.gold())
+    if since and until:
+        embed.description = f"Du {since.strftime('%d/%m/%Y')} au {until.strftime('%d/%m/%Y')}"
     if not stats["nights"]:
-        since = f" (l'historique a démarré le {fr(stats['first_day'])})" if stats["first_day"] else ""
-        embed.description = f"Pas encore de soirée avec des présents sur cette période{since}."
+        started = f" (l'historique a démarré le {fr(stats['first_day'])})" if stats["first_day"] else ""
+        empty = f"Pas encore de soirée avec des présents sur cette période{started}."
+        embed.description = f"{embed.description}\n{empty}" if embed.description else empty
         return embed
 
     record_day, record_n = stats["record"]
@@ -41,7 +49,7 @@ def build_stats_embed(stats, label):
     ), inline=False)
 
     players = [
-        f"{MEDALS[i] if i < 3 else f'{i + 1}.'} <@{uid}> — {n} soirée{'s' if n > 1 else ''}"
+        f"{rank(i)} <@{uid}> — {n} soirée{'s' if n > 1 else ''}"
         for i, (uid, n) in enumerate(stats["top_players"])
     ]
     embed.add_field(name="🏆 Les plus présents", value="\n".join(players), inline=False)
@@ -124,7 +132,7 @@ class Stats(commands.Cog):
         today = datetime.now(TIMEZONE).date()
         since = today - timedelta(days=days - 1) if days else None
         label = periode.name if periode else "30 derniers jours"
-        embed = build_stats_embed(compute_stats(load_history(), since), label)
+        embed = build_stats_embed(compute_stats(load_history(), since), label, since, today if since else None)
         # message visible par tous, mais sans notifier les membres cités
         await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 
