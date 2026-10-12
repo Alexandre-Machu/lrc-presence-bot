@@ -127,17 +127,17 @@ class Stats(commands.Cog):
         log.exception("Erreur lors du récap du mois", exc_info=error)
 
     @app_commands.command(name="lrcstats", description="Stats des soirées : les plus présents, les jeux les plus joués…")
-    @app_commands.describe(periode="Période (depuis le début par défaut)")
+    @app_commands.describe(periode="Période (30 derniers jours par défaut)")
     @app_commands.choices(periode=[
         app_commands.Choice(name="7 derniers jours", value=7),
         app_commands.Choice(name="30 derniers jours", value=30),
         app_commands.Choice(name="Depuis le début", value=0),
     ])
     async def lrcstats(self, interaction: discord.Interaction, periode: Optional[app_commands.Choice[int]] = None):
-        days = periode.value if periode else 0
+        days = periode.value if periode else 30
         today = datetime.now(TIMEZONE).date()
         since = today - timedelta(days=days - 1) if days else None
-        label = periode.name if periode else "Depuis le début"
+        label = periode.name if periode else "30 derniers jours"
         history = load_history()
         embed = build_stats_embed(compute_stats(history, since), label, since, today if since else None,
                                   gaps=data_gaps(history, since, today))

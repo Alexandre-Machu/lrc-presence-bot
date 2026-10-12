@@ -849,7 +849,7 @@ def test_stats_ranking_not_a_markdown_list_and_period_shown():
     assert "Aucune soirée enregistrée" in embed.description  # rien avant aujourd'hui sur la période
 
 
-def test_stats_default_is_all_time():
+def test_stats_default_is_30_days_and_all_time_option():
     t = today()
     history_utils._write_json(history_utils.HISTORY_FILE, {
         t.isoformat(): day_entry({"1": "Présent"}),
@@ -858,6 +858,11 @@ def test_stats_default_is_all_time():
     cog = stats_cog.Stats(None)
     inter = make_interaction(member(1))
     run(cog.lrcstats.callback(cog, inter, None))
+    embed = last(inter)[2]["embed"]
+    assert "30 derniers jours" in embed.title and "<@2>" not in embed.fields[1].value
+
+    inter = make_interaction(member(1))
+    run(cog.lrcstats.callback(cog, inter, app_commands.Choice(name="Depuis le début", value=0)))
     embed = last(inter)[2]["embed"]
     assert "Depuis le début" in embed.title and "Du " not in embed.description
     assert "Aucune soirée enregistrée du 06/07/2025" in embed.description
