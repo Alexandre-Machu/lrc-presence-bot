@@ -845,7 +845,8 @@ def test_stats_ranking_not_a_markdown_list_and_period_shown():
     lines = embed.fields[1].value.split("\n")
     assert lines[0].startswith("🥇") and lines[3].startswith(r"4\.") and lines[4].startswith(r"5\.")
     since = (t - timedelta(days=29)).strftime("%d/%m/%Y")
-    assert embed.description == f"Du {since} au {t.strftime('%d/%m/%Y')}"
+    assert embed.description.startswith(f"Du {since} au {t.strftime('%d/%m/%Y')}")
+    assert "Aucune soirée enregistrée" in embed.description  # rien avant aujourd'hui sur la période
 
 
 def test_stats_default_is_all_time():
@@ -858,5 +859,20 @@ def test_stats_default_is_all_time():
     inter = make_interaction(member(1))
     run(cog.lrcstats.callback(cog, inter, None))
     embed = last(inter)[2]["embed"]
-    assert "Depuis le début" in embed.title and embed.description is None
+    assert "Depuis le début" in embed.title and "Du " not in embed.description
+    assert "Aucune soirée enregistrée du 06/07/2025" in embed.description
     assert "<@2>" in embed.fields[1].value
+
+
+def test_data_gaps():
+    h = {
+        "2025-12-15": day_entry({"1": "Présent"}),
+        "2025-12-16": day_entry({"1": "Présent"}),
+        "2026-10-05": day_entry({"2": "Ne sait pas"}),   # sans présent : ne compte pas comme soirée
+        "2026-10-12": day_entry({"1": "Présent"}),
+    }
+    assert history_utils.data_gaps(h) == [(date(2025, 12, 17), date(2026, 10, 11))]
+    since, until = date(2026, 9, 13), date(2026, 10, 12)
+    assert history_utils.data_gaps(h, since, until) == [(since, date(2026, 10, 11))]
+    assert history_utils.data_gaps(h, date(2026, 10, 1), until) == []   # moins de 14 jours : pas de note
+    assert history_utils.data_gaps({}, since, until) == []

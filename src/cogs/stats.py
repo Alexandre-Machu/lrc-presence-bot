@@ -9,7 +9,7 @@ from discord.ext import commands, tasks
 
 from config.settings import CHANNEL_ID, GAMES, GUILD_ID, TIMEZONE
 from utils.history import (
-    MONTHS, compute_stats, load_history, merge_sheet_import, month_recap, parse_sheet_csv, previous_month,
+    MONTHS, compute_stats, data_gaps, load_history, merge_sheet_import, month_recap, parse_sheet_csv, previous_month,
     save_history,
 )
 from utils.storage import get_meta, set_meta
@@ -31,10 +31,16 @@ def rank(i):
     return MEDALS[i] if i < len(MEDALS) else f"{i + 1}\\."
 
 
-def build_stats_embed(stats, label, since: date = None, until: date = None):
+def build_stats_embed(stats, label, since: date = None, until: date = None, gaps=()):
     embed = discord.Embed(title=f"📊 Stats LRC — {label}", color=discord.Color.gold())
+    lines = []
     if since and until:
-        embed.description = f"Du {since.strftime('%d/%m/%Y')} au {until.strftime('%d/%m/%Y')}"
+        lines.append(f"Du {since.strftime('%d/%m/%Y')} au {until.strftime('%d/%m/%Y')}")
+    for start, end in gaps[:2]:
+        lines.append(f"ℹ️ Aucune soirée enregistrée du {start.strftime('%d/%m/%Y')} au {end.strftime('%d/%m/%Y')} "
+                     "(le bot ne gardait pas d'historique)")
+    if lines:
+        embed.description = "\n".join(lines)
     if not stats["nights"]:
         started = f" (l'historique a démarré le {fr(stats['first_day'])})" if stats["first_day"] else ""
         empty = f"Pas encore de soirée avec des présents sur cette période{started}."
@@ -132,7 +138,9 @@ class Stats(commands.Cog):
         today = datetime.now(TIMEZONE).date()
         since = today - timedelta(days=days - 1) if days else None
         label = periode.name if periode else "Depuis le début"
-        embed = build_stats_embed(compute_stats(load_history(), since), label, since, today if since else None)
+        history = load_history()
+        embed = build_stats_embed(compute_stats(history, since), label, since, today if since else None,
+                                  gaps=data_gaps(history, since, today))
         # message visible par tous, mais sans notifier les membres cités
         await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions.none())
 

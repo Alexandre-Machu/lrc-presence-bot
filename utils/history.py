@@ -73,6 +73,22 @@ def compute_stats(history, since: date = None, until: date = None):
     }
 
 
+def data_gaps(history, since: date = None, until: date = None, min_days=14):
+    """Périodes d'au moins `min_days` jours sans aucune soirée enregistrée : [(début, fin), ...].
+
+    Sert à expliquer des stats maigres (ex. aucun historique entre fin 2025 et octobre 2026).
+    """
+    days = [date.fromisoformat(d) for d in session_days(in_range(history, since, until))]
+    if not days:
+        return []
+    bounds = ([since - timedelta(days=1)] if since else []) + days
+    gaps = []
+    for before, after in zip(bounds, bounds[1:]):
+        if (after - before).days - 1 >= min_days:
+            gaps.append((before + timedelta(days=1), after - timedelta(days=1)))
+    return gaps
+
+
 # ---- séries 🔥 : soirées d'affilée (les jours sans aucun présent ne cassent pas la série)
 
 def session_days(history):
