@@ -83,6 +83,11 @@ class PresenceState:
             })
         except OSError as e:
             log.error("Sauvegarde de l'état impossible : %s", e)
+        try:
+            from utils.history import record_day
+            record_day(self.date, self.presence, self.games)
+        except (OSError, ValueError) as e:
+            log.error("Sauvegarde de l'historique impossible : %s", e)
 
 
 def load_birthdays():

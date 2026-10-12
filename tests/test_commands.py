@@ -12,12 +12,14 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 from config.settings import TIMEZONE  # noqa: E402
 from utils import absences as absences_utils  # noqa: E402
+from utils import history as history_utils  # noqa: E402
 from utils import storage  # noqa: E402
 
 from cogs import absences as absences_cog  # noqa: E402
 from cogs import birthdays as birthdays_cog  # noqa: E402
 from cogs import info as info_cog  # noqa: E402
 from cogs import presence as presence_cog  # noqa: E402
+from cogs import stats as stats_cog  # noqa: E402
 
 
 def today():
@@ -118,7 +120,7 @@ def test_guide_matches_registered_commands():
     stub = SimpleNamespace(get_cog=lambda n: None)
     registered = set()
     for cog in (presence_cog.Presence(stub), birthdays_cog.Birthdays(stub),
-                absences_cog.Absences(stub), info_cog.Info(stub)):
+                absences_cog.Absences(stub), stats_cog.Stats(stub), info_cog.Info(stub)):
         registered |= set(cog_commands(cog))
     cited = info_cog.guide_command_names()
     assert cited <= registered, f"commandes citées dans le guide mais inexistantes : {cited - registered}"
@@ -310,8 +312,9 @@ def test_absence_without_args_opens_calendar():
     run(cog.lrcabsence.callback(cog, inter, None, None))
     kind, content, kw = last(inter)
     assert kind == "send_message" and kw["ephemeral"] and kw["view"] is not None
-    labels = [c.label for c in kw["view"].children]
+    labels = [getattr(c, "label", None) for c in kw["view"].children]
     assert "Toute la semaine" in labels and "Terminé" in labels
+    assert any(isinstance(c, absences_cog.WeeklySelect) for c in kw["view"].children)
 
 
 def test_calendar_toggle_day_and_week_and_today():
@@ -565,3 +568,119 @@ def test_cleanup_removes_old_birthday_wishes_but_keeps_todays():
 
     run(cog.clear_old_presence_messages(Channel()))
     assert deleted == ["hier"]
+
+
+# ---------------------------------------------------------------- absences récurrentes
+
+def test_weekly_utils():
+    data = {}
+    absences_utils.set_weekly(data, 1, [3, 0, 3])
+    assert data == {"1": [0, 3]}
+    assert absences_utils.weekly_label(data["1"]) == "lundi, jeudi"
+    thursday = date(2026, 10, 15)
+    assert absences_utils.weekly_absent_on(data, thursday) == {"1"}
+    assert absences_utils.weekly_absent_on(data, thursday + timedelta(days=1)) == set()
+    absences_utils.set_weekly(data, 1, [])
+    assert data == {}
+
+
+def test_weekly_absence_prefilled_in_morning():
+    pres = new_presence()
+    absences_utils.save_weekly({"7": [today().weekday()], "8": [(today().weekday() + 1) % 7]})
+    pres.state.reset(save=False)
+    pres.apply_planned_absences()
+    assert pres.state.presence == {"7": "Absent"}
+
+
+def test_calendar_weekly_select_and_today():
+    async def go():
+        cog, pres = make_absences_cog()
+        t = today()
+        monday = absences_cog.monday_of(t)
+        inter = make_interaction(member(1))
+        # cocher le jour de la semaine d'aujourd'hui => absent tout de suite
+        await cog.update_weekly(inter, [t.weekday()], monday)
+        assert absences_utils.load_weekly() == {"1": [t.weekday()]}
+        assert pres.state.presence.get("1") == "Absent"
+        assert "Chaque semaine" in last(inter)[2]["content"]
+        # le jour apparaît avec 🔁 et n'est plus cliquable ; le menu est pré-coché
+        view = cog.panel_view(1, monday)
+        day = [c for c in view.children if isinstance(c, absences_cog.DayButton) and c.day == t][0]
+        assert day.disabled and str(day.emoji) == "🔁"
+        weekly = [c for c in view.children if isinstance(c, absences_cog.WeeklySelect)][0]
+        assert [o.value for o in weekly.options if o.default] == [str(t.weekday())]
+        # décocher => plus absent
+        await cog.update_weekly(make_interaction(member(1)), [], monday)
+        assert absences_utils.load_weekly() == {}
+        assert "1" not in pres.state.presence
+    run(go())
+
+
+def test_weekly_removed_keeps_one_off_absence_today():
+    async def go():
+        cog, pres = make_absences_cog()
+        t = today()
+        absences_utils.save_absences({"1": [{"start": t.isoformat(), "end": t.isoformat()}]})
+        await cog.update_weekly(make_interaction(member(1)), [t.weekday()], absences_cog.monday_of(t))
+        await cog.update_weekly(make_interaction(member(1)), [], absences_cog.monday_of(t))
+        assert pres.state.presence.get("1") == "Absent"
+    run(go())
+
+
+def test_list_absences_shows_weekly():
+    cog, _ = make_absences_cog()
+    absences_utils.save_weekly({"1": [3]})
+    inter = make_interaction(member(1))
+    run(cog.lrcabsences.callback(cog, inter, False))
+    assert "chaque jeudi" in text_of(inter)
+
+
+# ---------------------------------------------------------------- historique et stats
+
+def test_history_recorded_on_save_only_with_answers():
+    state = storage.PresenceState()
+    state.save()
+    assert history_utils.load_history() == {}
+    state.presence = {"1": "Présent", "2": "Absent"}
+    state.games = {"1": ["Valorant"]}
+    state.save()
+    iso = today().isoformat()
+    assert history_utils.load_history()[iso]["presence"] == {"1": "Présent", "2": "Absent"}
+
+
+def test_compute_stats():
+    history = {
+        "2026-10-01": {"presence": {"1": "Présent", "2": "Présent", "3": "Absent"},
+                       "games": {"1": ["LoL"], "2": ["LoL", "Valorant"], "3": ["LoL"]}},
+        "2026-10-02": {"presence": {"1": "Présent", "2": "Ne sait pas"}, "games": {"1": ["Valorant"]}},
+        "2026-10-03": {"presence": {"3": "Absent"}, "games": {}},
+    }
+    s = history_utils.compute_stats(history)
+    assert s["nights"] == 2
+    assert s["average"] == 1.5
+    assert s["record"] == ("2026-10-01", 2)
+    assert s["top_players"] == [("1", 2), ("2", 1)]
+    assert s["top_games"] == [("LoL", 2), ("Valorant", 2)]  # le jeu d'un absent ne compte pas
+    assert s["first_day"] == "2026-10-01"
+    assert history_utils.compute_stats(history, since=date(2026, 10, 2))["nights"] == 1
+
+
+def test_lrcstats_command():
+    cog = stats_cog.Stats(None)
+    inter = make_interaction(member(1))
+    run(cog.lrcstats.callback(cog, inter, None))
+    kind, _, kw = last(inter)
+    assert kind == "send_message" and "Pas encore" in kw["embed"].description
+    assert "ephemeral" not in kw  # visible par tous
+
+    t = today()
+    history_utils._write_json(history_utils.HISTORY_FILE, {
+        t.isoformat(): {"presence": {"1": "Présent", "2": "Présent"}, "games": {"1": ["LoL"]}},
+        (t - timedelta(days=60)).isoformat(): {"presence": {"3": "Présent"}, "games": {}},
+    })
+    inter = make_interaction(member(1))
+    run(cog.lrcstats.callback(cog, inter, None))  # 30 jours par défaut
+    embed = last(inter)[2]["embed"]
+    text = "\n".join(f.value for f in embed.fields)
+    assert "<@1>" in text and "<@3>" not in text and "LoL" in text
+    assert last(inter)[2]["allowed_mentions"].users is False

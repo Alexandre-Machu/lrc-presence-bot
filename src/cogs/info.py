@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from config.settings import GUILD_ID
 
-VERSION = "V1.8.2"
+VERSION = "V1.9.0"
 
 # Une seule source de vérité : le guide ET le test qui vérifie que chaque commande existe
 GUIDE_SECTIONS = [
@@ -19,6 +19,7 @@ GUIDE_SECTIONS = [
     ]),
     ("📅 Absences", [
         "📅 **Mes absences** (bouton sous le message) ou `/lrcabsence` : calendrier cliquable.",
+        "🔁 Dans le calendrier, le menu **Absent chaque semaine le…** : ex « jamais le jeudi ».",
         "`/lrcabsence 12/10 18/10` : une période d'un coup.",
         "`/lrcabsences` : tes absences (`tous: True` pour celles de tout le monde).",
         "`/lrcremoveabsence` : annule une absence.",
@@ -28,6 +29,9 @@ GUIDE_SECTIONS = [
         "`/lrcremovebirthday` : supprime le tien.",
         "`/lrcbirthdays` : anniversaires des 30 prochains jours.",
         "Tu veux les détails ? `/lrcinfo sujet:Anniversaires`.",
+    ]),
+    ("📊 Stats", [
+        "`/lrcstats` : les plus présents, les jeux les plus demandés, la soirée record (7 jours, 30 jours ou depuis le début).",
     ]),
     ("🛠️ Admin", [
         "`/lrcreset` : nouveau message de présence (remet tout à zéro).",
@@ -70,6 +74,10 @@ TOPICS = {
          "Bouton **📅 Mes absences** sous le message du jour, ou `/lrcabsence`. "
          "Clique sur un jour pour l'ajouter ou le retirer, **🏖️ Toute la semaine** pour les vacances, "
          "◀ ▶ pour changer de semaine."),
+        ("Chaque semaine 🔁",
+         "Dans le calendrier, le menu **Absent chaque semaine le…** : coche par exemple *Chaque jeudi*. "
+         "Ces jours-là apparaissent avec 🔁 et tu es marqué ❌ automatiquement, toutes les semaines. "
+         "Décoche pour arrêter."),
         ("Une période d'un coup",
          "`/lrcabsence 12/10 18/10` (début et fin inclus), ou `/lrcabsence 25/12/2026`."),
         ("Voir et annuler",
