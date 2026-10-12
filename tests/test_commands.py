@@ -770,3 +770,61 @@ def test_monthly_recap_posted_once_on_the_first(monkeypatch):
     at(2027, 1, 2, 12, 0)
     assert run(cog.post_recap_if_due()) is False      # décembre vide : rien de posté
     assert len(channel.sent) == 1
+
+
+# ---------------------------------------------------------------- import de l'ancien Google Sheet
+
+SHEET_CSV = (
+    "﻿Date,Personne,Statut,Heure\r\n"
+    "21/06/2025,alice,Présent,\r\n"
+    "21/06/2025,Bob,Présent,21:00:00\r\n"
+    "21/06/2025,carol,Ne sait pas,later\r\n"
+    "22/06/2025,alice,Absent,\r\n"
+    "22/06/2025,bob,Présent,9:15\r\n"
+    "22/06/2025,inconnu,Présent,\r\n"
+    "ligne,cassée\r\n"
+)
+
+
+def test_parse_sheet_csv():
+    parsed = history_utils.parse_sheet_csv(SHEET_CSV)
+    assert parsed["2025-06-21"] == {"alice": ("Présent", None), "bob": ("Présent", "21:00"),
+                                    "carol": ("Ne sait pas", None)}
+    assert parsed["2025-06-22"]["bob"] == ("Présent", "09:15")
+
+
+def test_merge_sheet_import_keeps_existing_days():
+    history = {"2025-06-22": day_entry({"1": "Absent"})}
+    parsed = history_utils.parse_sheet_csv(SHEET_CSV)
+    added, kept, unknown = history_utils.merge_sheet_import(history, parsed, {"alice": "1", "bob": "2", "carol": "3"})
+    assert (added, kept, unknown) == (1, 1, set())
+    assert history["2025-06-21"]["presence"] == {"1": "Présent", "2": "Présent", "3": "Ne sait pas"}
+    assert history["2025-06-21"]["arrival"] == {"2": "21:00"}
+    assert history["2025-06-22"] == day_entry({"1": "Absent"})  # jour déjà connu : pas écrasé
+
+
+def test_lrcimport_command():
+    class Attachment:
+        async def read(self):
+            return SHEET_CSV.encode("utf-8")
+
+    cog = stats_cog.Stats(None)
+    inter = make_interaction(member(1, admin=True))
+    inter.guild.members = [SimpleNamespace(id=11, name="alice"), SimpleNamespace(id=22, name="bob")]
+    run(cog.lrcimport.callback(cog, inter, Attachment()))
+    text = inter.followup.calls[-1][0]
+    assert "**2** jour(s) ajouté(s)" in text and "`carol`" in text and "`inconnu`" in text
+    history = history_utils.load_history()
+    assert history["2025-06-22"]["presence"] == {"11": "Absent", "22": "Présent"}
+    assert history_utils.compute_stats(history)["nights"] == 2
+    assert stats_cog.Stats.lrcimport.default_permissions.administrator
+
+
+def test_streak_broken_by_long_gap():
+    h = {
+        "2025-12-15": day_entry({"1": "Présent"}),
+        "2025-12-16": day_entry({"1": "Présent"}),
+        "2026-10-12": day_entry({"1": "Présent"}),   # 10 mois plus tard : nouvelle série
+    }
+    assert history_utils.current_streaks(h, "2026-10-12") == {"1": 1}
+    assert history_utils.best_streaks(h) == {"1": 2}

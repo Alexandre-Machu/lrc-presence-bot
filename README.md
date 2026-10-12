@@ -1,4 +1,4 @@
-# LRC Presence Bot V1.10.0
+# LRC Presence Bot V1.11.0
 
 Bot Discord pour la gestion des présences du LRC.
 
@@ -31,7 +31,7 @@ Stats : `/lrcstats [periode]` : les plus présents, les jeux les plus demandés,
 
 Présence : menu d'heure d'arrivée de 19h30 à 23h00 (par 30 min), ou **✏️ Entrer manuellement** pour taper la tienne (`21:40`, `21h40`).
 
-Administrateurs : `/lrcreset` (nouveau message de présence), et `/lrcbirthday`/`/lrcremovebirthday` avec `user:` pour un autre membre.
+Administrateurs : `/lrcreset` (nouveau message de présence), `/lrcimport` (importe l'historique de l'ancien Google Sheet, export CSV), et `/lrcbirthday`/`/lrcremovebirthday` avec `user:` pour un autre membre.
 
 ## Automatisation (heure de Paris)
 

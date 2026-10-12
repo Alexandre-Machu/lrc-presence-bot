@@ -1,5 +1,8 @@
 """Historique des soirées : {"2026-10-12": {"presence": {...}, "games": {...}, "arrival": {...}}} et stats."""
+import csv
+import io
 import os
+import re
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
 
@@ -9,10 +12,15 @@ from utils.storage import _read_json, _write_json
 HISTORY_FILE = os.path.join(DATA_DIR, "history.json")
 PRESENT, MAYBE = "Présent", "Ne sait pas"
 STREAK_MIN = 3  # 🔥 affiché à partir de 3 soirées d'affilée
+STREAK_MAX_GAP_DAYS = 7  # au-delà d'une semaine sans soirée, les séries repartent de zéro
 
 
 def load_history():
     return _read_json(HISTORY_FILE, {})
+
+
+def save_history(history):
+    _write_json(HISTORY_FILE, history)
 
 
 def record_day(day_fr, presence, games, arrival=None):
@@ -71,6 +79,10 @@ def session_days(history):
     return sorted(d for d, v in history.items() if presents_of(v))
 
 
+def big_gap(previous_iso, iso):
+    return (date.fromisoformat(iso) - date.fromisoformat(previous_iso)).days > STREAK_MAX_GAP_DAYS
+
+
 def current_streaks(history, today_iso):
     """{uid: n} pour les présents du jour : nombre de soirées d'affilée, aujourd'hui compris."""
     sessions = [d for d in session_days(history) if d <= today_iso]
@@ -78,11 +90,11 @@ def current_streaks(history, today_iso):
         return {}
     streaks = {}
     for uid in presents_of(history[today_iso]):
-        n = 0
+        n, later = 0, None
         for d in reversed(sessions):
-            if uid not in presents_of(history[d]):
+            if uid not in presents_of(history[d]) or (later and big_gap(d, later)):
                 break
-            n += 1
+            n, later = n + 1, d
         streaks[uid] = n
     return streaks
 
@@ -90,12 +102,62 @@ def current_streaks(history, today_iso):
 def best_streaks(history):
     """{uid: plus longue série} sur la période donnée."""
     best, running = defaultdict(int), defaultdict(int)
+    previous = None
     for d in session_days(history):
+        if previous and big_gap(previous, d):
+            running.clear()
         presents = set(presents_of(history[d]))
         for uid in set(running) | presents:
             running[uid] = running[uid] + 1 if uid in presents else 0
             best[uid] = max(best[uid], running[uid])
+        previous = d
     return dict(best)
+
+
+# ---- import de l'ancien tracker Google Sheets (CSV : Date,Personne,Statut,Heure)
+
+def parse_sheet_csv(text):
+    """-> {iso: {pseudo: (statut, 'HH:MM' | None)}}. Lignes illisibles ignorées."""
+    days = defaultdict(dict)
+    for row in csv.reader(io.StringIO(text.lstrip("﻿"))):
+        if len(row) < 3:
+            continue
+        try:
+            iso = datetime.strptime(row[0].strip(), "%d/%m/%Y").date().isoformat()
+        except ValueError:
+            continue  # en-tête ou ligne cassée
+        name, status = row[1].strip().lower(), row[2].strip()
+        if status not in (PRESENT, MAYBE, "Absent") or not name:
+            continue
+        match = re.match(r"^(\d{1,2}):(\d{2})", row[3].strip()) if len(row) > 3 else None
+        arrival = f"{int(match[1]):02d}:{match[2]}" if match else None
+        days[iso][name] = (status, arrival)
+    return dict(days)
+
+
+def merge_sheet_import(history, parsed, name_to_id):
+    """Ajoute les jours importés sans écraser ceux déjà enregistrés par le bot.
+
+    Retourne (jours ajoutés, jours déjà présents, pseudos non reconnus).
+    """
+    added, kept, unknown = 0, 0, set()
+    for iso, people in parsed.items():
+        if iso in history:
+            kept += 1
+            continue
+        presence, arrival = {}, {}
+        for name, (status, time_value) in people.items():
+            uid = name_to_id.get(name)
+            if uid is None:
+                unknown.add(name)
+                continue
+            presence[uid] = status
+            if status == PRESENT and time_value:
+                arrival[uid] = time_value
+        if presence:
+            history[iso] = {"presence": presence, "games": {}, "arrival": arrival, "imported": True}
+            added += 1
+    return added, kept, unknown
 
 
 # ---- récap du mois

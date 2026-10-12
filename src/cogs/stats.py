@@ -8,7 +8,10 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from config.settings import CHANNEL_ID, GAMES, GUILD_ID, TIMEZONE
-from utils.history import MONTHS, compute_stats, load_history, month_recap, previous_month
+from utils.history import (
+    MONTHS, compute_stats, load_history, merge_sheet_import, month_recap, parse_sheet_csv, previous_month,
+    save_history,
+)
 from utils.storage import get_meta, set_meta
 
 log = logging.getLogger(__name__)
@@ -124,6 +127,37 @@ class Stats(commands.Cog):
         embed = build_stats_embed(compute_stats(load_history(), since), label)
         # message visible par tous, mais sans notifier les membres cités
         await interaction.response.send_message(embed=embed, allowed_mentions=discord.AllowedMentions.none())
+
+    @app_commands.command(name="lrcimport", description="Importe l'historique de l'ancien Google Sheet (CSV)")
+    @app_commands.describe(fichier="Export CSV du Sheet (Fichier → Télécharger → CSV)")
+    @app_commands.default_permissions(administrator=True)
+    @app_commands.checks.has_permissions(administrator=True)
+    async def lrcimport(self, interaction: discord.Interaction, fichier: discord.Attachment):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            parsed = parse_sheet_csv((await fichier.read()).decode("utf-8-sig"))
+        except UnicodeDecodeError:
+            await interaction.followup.send("Fichier illisible : envoie l'export **CSV** du Sheet.", ephemeral=True)
+            return
+        if not parsed:
+            await interaction.followup.send(
+                "Aucune ligne reconnue. Le CSV doit avoir les colonnes Date, Personne, Statut, Heure.", ephemeral=True)
+            return
+        # le Sheet contient des pseudos Discord : on retrouve les membres du serveur correspondants
+        name_to_id = {m.name.lower(): str(m.id) for m in interaction.guild.members}
+        history = load_history()
+        added, kept, unknown = merge_sheet_import(history, parsed, name_to_id)
+        save_history(history)
+        first, last = min(parsed), max(parsed)
+        text = (
+            f"Import terminé : **{added}** jour(s) ajouté(s) ({fr(first)} → {fr(last)}), "
+            f"{kept} déjà présent(s) laissé(s) tels quels."
+        )
+        if unknown:
+            text += ("\nPseudos introuvables sur le serveur (ignorés) : "
+                     + ", ".join(f"`{n}`" for n in sorted(unknown)))
+        log.info("Import Sheets : %d jours ajoutés, %d inconnus", added, len(unknown))
+        await interaction.followup.send(text, ephemeral=True)
 
 
 async def setup(bot):

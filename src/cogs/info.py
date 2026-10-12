@@ -8,7 +8,7 @@ from discord.ext import commands
 
 from config.settings import GUILD_ID
 
-VERSION = "V1.10.0"
+VERSION = "V1.11.0"
 
 # Une seule source de vérité : le guide ET le test qui vérifie que chaque commande existe
 GUIDE_SECTIONS = [
@@ -37,6 +37,7 @@ GUIDE_SECTIONS = [
     ]),
     ("🛠️ Admin", [
         "`/lrcreset` : nouveau message de présence (remet tout à zéro).",
+        "`/lrcimport` : importe l'historique de l'ancien Google Sheet (fichier CSV) pour les stats.",
         "`/lrcbirthday ... user:@membre` et `/lrcremovebirthday user:@membre` : pour un autre membre.",
     ]),
     ("⏰ Automatique (heure de Paris)", [
